@@ -24,7 +24,7 @@ Registry network: Base Sepolia (chain 84532), RPC `https://sepolia.base.org`, ex
 
 | Field | Value |
 | --- | --- |
-| Base URL | the live deployment, e.g. `https://<deployment>.vercel.app` |
+| Base URL | `https://anchor-pi-nine.vercel.app` (live production alias) |
 | Auth type | `none` (public read-only verifiable feed) |
 | Rate limit | conservative to start, e.g. 60 req/min |
 | Cache TTL | 12 seconds (matches the `Cache-Control` the API sets) |
@@ -37,10 +37,10 @@ Paste a real request and response captured from the live deployment (not localho
 Sample request:
 
 ```
-GET /api/health-factor?wallet=0xA83a8e4A4923Eee175170df78b59103D254F86eF
+GET https://anchor-pi-nine.vercel.app/api/health-factor?wallet=0xA83a8e4A4923Eee175170df78b59103D254F86eF
 ```
 
-Sample response: capture fresh from the live URL at registration time. The shape is fixed; the numbers are live. Reference shape:
+Sample response (real, captured from production; the numbers are live and move block to block):
 
 ```json
 {
@@ -49,17 +49,17 @@ Sample response: capture fresh from the live URL at registration time. The shape
   "status": "active",
   "riskLabel": "AT_RISK",
   "healthFactor": 1.1,
-  "totalCollateralUSD": 49542.3,
-  "totalDebtUSD": 37381.93,
+  "totalCollateralUSD": 28267.81,
+  "totalDebtUSD": 21329.35,
   "liquidationThreshold": 0.83,
   "liquidationDistance": {
     "collateralDropPercentToLiquidation": 9.09,
     "description": "Collateral value would need to drop ~9.09% (uniformly across the collateral basket) to trigger liquidation at current debt levels."
   },
-  "confidence": 1,
+  "confidence": 0.99,
   "meta": {
-    "blockNumber": 49826897,
-    "timestamp": "2026-08-11T10:12:21.000Z",
+    "blockNumber": 49853737,
+    "timestamp": "2026-08-12T01:07:01.000Z",
     "source": "aave-v3-pool-contract",
     "chainId": 8453,
     "network": "base-mainnet"
