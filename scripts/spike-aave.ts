@@ -9,7 +9,7 @@
  * can ethers v6 talk to Base mainnet, call the Aave V3 Pool, and decode
  * a position into a sane health factor + derived liquidation distance.
  */
-import "./curl-transport"; // DEV-ONLY: routes ethers HTTP via curl in this sandbox. Not used by src/ or api/.
+import "./curl-transport.js"; // DEV-ONLY: routes ethers HTTP via curl in this sandbox. Not used by src/ or api/.
 import { JsonRpcProvider, Contract, formatUnits, isAddress, MaxUint256 } from "ethers";
 
 const BASE_RPC = "https://mainnet.base.org";

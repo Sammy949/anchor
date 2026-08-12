@@ -1,6 +1,6 @@
 import { Contract, formatUnits, MaxUint256, type JsonRpcProvider } from "ethers";
-import { AAVE_V3_POOL, BPS_DECIMALS, HF_DECIMALS, USD_DECIMALS } from "./config";
-import type { AaveAccountData } from "./types";
+import { AAVE_V3_POOL, BPS_DECIMALS, HF_DECIMALS, USD_DECIMALS } from "./config.js";
+import type { AaveAccountData } from "./types.js";
 
 // Minimal ABI: we only need the aggregate account view.
 export const POOL_ABI = [

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { renderBanner, serviceDescriptor } from "../src/banner";
+import { renderBanner, serviceDescriptor } from "../src/banner.js";
 
 export default function handler(req: VercelRequest, res: VercelResponse): void {
   const accept = String(req.headers.accept ?? "");

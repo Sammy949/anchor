@@ -1,8 +1,8 @@
 import { getAddress, isAddress, JsonRpcProvider } from "ethers";
-import { NETWORK, PROTOCOL, SOURCE } from "./config";
-import { readAaveAccountData } from "./aave";
-import { freshnessConfidence, liquidationDistance, positionStatus, riskLabel, round2, round4 } from "./risk";
-import type { HealthFactorResponse } from "./types";
+import { NETWORK, PROTOCOL, SOURCE } from "./config.js";
+import { readAaveAccountData } from "./aave.js";
+import { freshnessConfidence, liquidationDistance, positionStatus, riskLabel, round2, round4 } from "./risk.js";
+import type { HealthFactorResponse } from "./types.js";
 
 export class InvalidWalletError extends Error {
   constructor(input: string) {

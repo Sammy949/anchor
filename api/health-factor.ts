@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getRiskSignal, InvalidWalletError } from "../src/service";
-import { logBannerOnce } from "../src/banner";
-import { CACHE_TTL_SECONDS } from "../src/config";
+import { getRiskSignal, InvalidWalletError } from "../src/service.js";
+import { logBannerOnce } from "../src/banner.js";
+import { CACHE_TTL_SECONDS } from "../src/config.js";
 
 logBannerOnce();
 

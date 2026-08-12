@@ -7,10 +7,10 @@
  *   npm run dev            # serve on :3000
  *   curl localhost:3000/api/health-factor?wallet=0x...
  */
-import "./curl-transport";
+import "./curl-transport.js";
 import { createServer } from "node:http";
-import { getRiskSignal, InvalidWalletError } from "../src/service";
-import { renderBanner, serviceDescriptor } from "../src/banner";
+import { getRiskSignal, InvalidWalletError } from "../src/service.js";
+import { renderBanner, serviceDescriptor } from "../src/banner.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 

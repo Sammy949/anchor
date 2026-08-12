@@ -7,8 +7,8 @@ import {
   riskLabel,
   round2,
   round4,
-} from "../src/risk";
-import type { AaveAccountData } from "../src/types";
+} from "../src/risk.js";
+import type { AaveAccountData } from "../src/types.js";
 
 const acct = (over: Partial<AaveAccountData>): AaveAccountData => ({
   totalCollateralUSD: 0,

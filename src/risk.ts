@@ -1,5 +1,5 @@
-import { CONFIDENCE_FLOOR, STALENESS_HORIZON_SECONDS } from "./config";
-import type { AaveAccountData, LiquidationDistance, PositionStatus, RiskLabel } from "./types";
+import { CONFIDENCE_FLOOR, STALENESS_HORIZON_SECONDS } from "./config.js";
+import type { AaveAccountData, LiquidationDistance, PositionStatus, RiskLabel } from "./types.js";
 
 export function positionStatus(d: AaveAccountData): PositionStatus {
   if (d.totalDebtUSD > 0) return "active";

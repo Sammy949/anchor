@@ -1,4 +1,4 @@
-import { NETWORK, PROTOCOL } from "./config";
+import { NETWORK, PROTOCOL } from "./config.js";
 
 // "ANCHOR" in the ANSI Shadow figlet style.
 const WORDMARK = String.raw`
