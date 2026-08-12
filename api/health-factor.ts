@@ -6,6 +6,15 @@ import { CACHE_TTL_SECONDS } from "../src/config.js";
 logBannerOnce();
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  // Public read-only feed: allow any origin so browser-based consumers (and
+  // Track 3 app prototypes) can call it directly.
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+
   const raw = req.query.wallet;
   const wallet = Array.isArray(raw) ? raw[0] : raw;
 
