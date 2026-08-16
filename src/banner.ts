@@ -20,7 +20,7 @@ export function renderBanner(): string {
     "",
     "  GET /api/health-factor?wallet=0x<address>",
     "",
-    "  telegraph miner (track 1)  ::  intent LIQUIDATION_RISK_CHECK",
+    "  telegraph miner (track 1)  ::  intent TVL_LOOKUP",
     "",
   ].join("\n");
 }
@@ -35,7 +35,7 @@ export function serviceDescriptor() {
     network: NETWORK.name,
     chainId: NETWORK.chainId,
     endpoints: { healthFactor: "/api/health-factor?wallet=0x<address>" },
-    telegraph: { track: "miner", intent: "LIQUIDATION_RISK_CHECK" },
+    telegraph: { track: "miner", intent: "TVL_LOOKUP" },
   };
 }
 

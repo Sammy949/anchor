@@ -4,7 +4,7 @@ Verified on-chain risk data miner for lending protocols. Real-time liquidation-r
 
 Built for the Telegraph Protocol Hackathon, Season I, Track 1 (Miner).
 
-Live: https://anchor-pi-nine.vercel.app
+Live: https://anchor-miner.vercel.app
 
 ## What it does
 
@@ -26,7 +26,7 @@ GET /api/health-factor?wallet=0x<address>
 ### Sample request
 
 ```
-curl "https://anchor-pi-nine.vercel.app/api/health-factor?wallet=0xA83a8e4A4923Eee175170df78b59103D254F86eF"
+curl "https://anchor-miner.vercel.app/api/health-factor?wallet=0xA83a8e4A4923Eee175170df78b59103D254F86eF"
 ```
 
 ### Sample response

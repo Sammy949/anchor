@@ -24,7 +24,7 @@ Registry network: Base Sepolia (chain 84532), RPC `https://sepolia.base.org`, ex
 
 | Field | Value |
 | --- | --- |
-| Base URL | `https://anchor-pi-nine.vercel.app` (live production alias) |
+| Base URL | `https://anchor-miner.vercel.app` (live production alias) |
 | Auth type | `none` (public read-only verifiable feed) |
 | Rate limit | conservative to start, e.g. 60 req/min |
 | Cache TTL | 12 seconds (matches the `Cache-Control` the API sets) |
@@ -37,7 +37,7 @@ Paste a real request and response captured from the live deployment (not localho
 Sample request:
 
 ```
-GET https://anchor-pi-nine.vercel.app/api/health-factor?wallet=0xA83a8e4A4923Eee175170df78b59103D254F86eF
+GET https://anchor-miner.vercel.app/api/health-factor?wallet=0xA83a8e4A4923Eee175170df78b59103D254F86eF
 ```
 
 Sample response (real, captured from production; the numbers are live and move block to block):
@@ -71,9 +71,9 @@ Pick a wallet that currently has an active position (non-null health factor) so 
 
 ## Section 4: Semantics
 
-None of Telegraph's canonical intents (CHAT_COMPLETION, WEATHER_CHECK, DEEPFAKE_DETECTION, FACT_CHECK, etc.) fit on-chain risk data. Add a custom intent:
+Intent: `TVL_LOOKUP`, a canonical Telegraph intent (On-Chain Analytics category, Tier A / WASM Exact Match scoring). Confirmed by the Telegraph team as the correct intent for Anchor.
 
-- Custom intent: `LIQUIDATION_RISK_CHECK`
+Ground truth is confirmed broad, not strict-TVL-only: the team confirmed broader on-chain intelligence is supported here. Anchor's existing response shape (risk label, health factor, liquidation distance, confidence) is accepted as-is, so no fields need to be added or renamed to fit the intent.
 
 Field mapping:
 
