@@ -187,3 +187,19 @@ curl "https://<deployment>.vercel.app/api/health-factor?wallet=0x<active-borrowe
 1. Upload the completed YAML to IPFS via the wizard.
 2. Register on-chain on Base Sepolia using the dedicated project wallet (needs a little Base Sepolia ETH for gas).
 3. Record the resulting integration address / tx here once done.
+
+### Registration record (done 2026-08-16)
+
+Miner registered successfully on-chain. Staged as **pending**; activates at the next epoch boundary (Telegraph nodes pick it up automatically, no restart).
+
+| Field | Value |
+| --- | --- |
+| Status | Confirmed on-chain, pending → activates next epoch |
+| Network | Base Sepolia (chain 84532) |
+| Registered via | `integrate.telegraphprotocol.com` |
+| Tx hash | `0xd43dd72aa613b83a101ad010bafc763ff4d08556461d061c4aa7d5198f8cb22d` |
+| Explorer | https://sepolia.basescan.org/tx/0xd43dd72aa613b83a101ad010bafc763ff4d08556461d061c4aa7d5198f8cb22d |
+| Registry contract | `0x5a232…87ff8` (truncated from MetaMask; fill full address from the dashboard/explorer) |
+| Integration ID | `anchor-risk-miner` |
+
+TODO: paste the full registry contract address and the assigned integration address once the explorer/dashboard shows them.
