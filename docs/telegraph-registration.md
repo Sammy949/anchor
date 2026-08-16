@@ -37,29 +37,29 @@ Paste a real request and response captured from the live deployment (not localho
 Sample request:
 
 ```
-GET https://anchor-miner.vercel.app/api/health-factor?wallet=0xA83a8e4A4923Eee175170df78b59103D254F86eF
+GET https://anchor-miner.vercel.app/api/health-factor?wallet=0x50B75AaCb1ed974F5c901a32BeE767de39CBb060
 ```
 
 Sample response (real, captured from production; the numbers are live and move block to block):
 
 ```json
 {
-  "wallet": "0xA83a8e4A4923Eee175170df78b59103D254F86eF",
+  "wallet": "0x50B75AaCb1ed974F5c901a32BeE767de39CBb060",
   "protocol": "aave-v3",
   "status": "active",
   "riskLabel": "AT_RISK",
-  "healthFactor": 1.1,
-  "totalCollateralUSD": 28267.81,
-  "totalDebtUSD": 21329.35,
-  "liquidationThreshold": 0.83,
+  "healthFactor": 1.3699,
+  "totalCollateralUSD": 53480.93,
+  "totalDebtUSD": 30450.98,
+  "liquidationThreshold": 0.78,
   "liquidationDistance": {
-    "collateralDropPercentToLiquidation": 9.09,
-    "description": "Collateral value would need to drop ~9.09% (uniformly across the collateral basket) to trigger liquidation at current debt levels."
+    "collateralDropPercentToLiquidation": 27,
+    "description": "Collateral value would need to drop ~27.00% (uniformly across the collateral basket) to trigger liquidation at current debt levels."
   },
-  "confidence": 0.99,
+  "confidence": 0.989,
   "meta": {
-    "blockNumber": 49853737,
-    "timestamp": "2026-08-12T01:07:01.000Z",
+    "blockNumber": 50047225,
+    "timestamp": "2026-08-16T12:36:37.000Z",
     "source": "aave-v3-pool-contract",
     "chainId": 8453,
     "network": "base-mainnet"
@@ -67,7 +67,7 @@ Sample response (real, captured from production; the numbers are live and move b
 }
 ```
 
-Pick a wallet that currently has an active position (non-null health factor) so the auto-generated schema captures the populated shape. The wallet above was active at build time; verify it still has debt, or grab another active borrower, before capturing.
+Pick a wallet that currently has an active position (non-null health factor) so the auto-generated schema captures the populated shape. The wallet above was a live Aave v3 borrower (~$53k collateral / ~$30k debt, AT_RISK) captured on 2026-08-16; verify it still has debt, or grab another active borrower with `scripts/find-borrower.ts`, before capturing.
 
 ## Section 4: Semantics
 

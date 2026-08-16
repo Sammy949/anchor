@@ -26,7 +26,7 @@ GET /api/health-factor?wallet=0x<address>
 ### Sample request
 
 ```
-curl "https://anchor-miner.vercel.app/api/health-factor?wallet=0xA83a8e4A4923Eee175170df78b59103D254F86eF"
+curl "https://anchor-miner.vercel.app/api/health-factor?wallet=0x50B75AaCb1ed974F5c901a32BeE767de39CBb060"
 ```
 
 ### Sample response
@@ -35,22 +35,22 @@ Real response from Base mainnet (values are live and move block to block):
 
 ```json
 {
-  "wallet": "0xA83a8e4A4923Eee175170df78b59103D254F86eF",
+  "wallet": "0x50B75AaCb1ed974F5c901a32BeE767de39CBb060",
   "protocol": "aave-v3",
   "status": "active",
   "riskLabel": "AT_RISK",
-  "healthFactor": 1.1,
-  "totalCollateralUSD": 49542.3,
-  "totalDebtUSD": 37381.93,
-  "liquidationThreshold": 0.83,
+  "healthFactor": 1.3699,
+  "totalCollateralUSD": 53480.93,
+  "totalDebtUSD": 30450.98,
+  "liquidationThreshold": 0.78,
   "liquidationDistance": {
-    "collateralDropPercentToLiquidation": 9.09,
-    "description": "Collateral value would need to drop ~9.09% (uniformly across the collateral basket) to trigger liquidation at current debt levels."
+    "collateralDropPercentToLiquidation": 27,
+    "description": "Collateral value would need to drop ~27.00% (uniformly across the collateral basket) to trigger liquidation at current debt levels."
   },
-  "confidence": 1,
+  "confidence": 0.989,
   "meta": {
-    "blockNumber": 49826897,
-    "timestamp": "2026-08-11T10:12:21.000Z",
+    "blockNumber": 50047225,
+    "timestamp": "2026-08-16T12:36:37.000Z",
     "source": "aave-v3-pool-contract",
     "chainId": 8453,
     "network": "base-mainnet"
