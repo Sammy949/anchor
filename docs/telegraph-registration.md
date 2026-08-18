@@ -6,6 +6,8 @@ Prerequisite: the API must be live first. The wizard needs a real Base URL and a
 
 Registry network: Base Sepolia (chain 84532), RPC `https://sepolia.base.org`, explorer `https://sepolia.basescan.org`. Use the dedicated project wallet for registration and payouts. Do not use any personal or other-project wallet.
 
+> **Intent pivot (2026-08-18).** Anchor originally registered under `TVL_LOOKUP`. That was wrong: the canonical `TVL_LOOKUP` scorer grades against a protocol-level total-value-locked figure ("Query names a specific DeFi protocol, pool or chain and asks for the total value locked in it"), while Anchor takes a *wallet* and returns *that wallet's* risk. Input and output both mismatch, so Anchor scored ~0. The Telegraph team (Ahmed) confirmed the mismatch, that Hackathon 1 is fixed to the canonical intent set (no custom intents until after), that scorers are seeded centrally, and that re-registering under a new intent carries no penalty. He recommended `FRAUD_DETECTION` with an ALLOW/RECHECK/BLOCK verdict. Anchor now serves **`FRAUD_DETECTION`** via `/api/risk-check`. `TVL_LOOKUP` is dropped.
+
 ---
 
 ## Section 1: Basics
@@ -17,7 +19,7 @@ Registry network: Base Sepolia (chain 84532), RPC `https://sepolia.base.org`, ex
 | Protocol | `generic` (not `bittensor`) |
 | Slug | `anchor` |
 | Name | `Anchor` |
-| Description | Verified on-chain risk data miner. Real-time liquidation-risk and health-factor signals for lending positions (Aave v3 on Base), with per-response freshness metadata so agents can trust how current the signal is. |
+| Description | On-chain counterparty-risk miner. Given a wallet, returns an ALLOW / RECHECK / BLOCK verdict on whether it is financially safe for an agent to extend credit to or transact with it, derived from live Aave v3 lending-protocol solvency state on Base, with per-response freshness metadata. |
 | Repo / docs / website | link the deployment root URL and the repo. |
 
 ## Section 2: Connection
@@ -37,7 +39,7 @@ Paste a real request and response captured from the live deployment (not localho
 Sample request:
 
 ```
-GET https://anchor-miner.vercel.app/api/health-factor?wallet=0x50B75AaCb1ed974F5c901a32BeE767de39CBb060
+GET https://anchor-miner.vercel.app/api/risk-check?wallet=0x50B75AaCb1ed974F5c901a32BeE767de39CBb060
 ```
 
 Sample response (real, captured from production; the numbers are live and move block to block):
@@ -46,20 +48,19 @@ Sample response (real, captured from production; the numbers are live and move b
 {
   "wallet": "0x50B75AaCb1ed974F5c901a32BeE767de39CBb060",
   "protocol": "aave-v3",
-  "status": "active",
-  "riskLabel": "AT_RISK",
-  "healthFactor": 1.3699,
-  "totalCollateralUSD": 53480.93,
-  "totalDebtUSD": 30450.98,
-  "liquidationThreshold": 0.78,
-  "liquidationDistance": {
-    "collateralDropPercentToLiquidation": 27,
-    "description": "Collateral value would need to drop ~27.00% (uniformly across the collateral basket) to trigger liquidation at current debt levels."
+  "verdict": "RECHECK",
+  "reasoning": "Counterparty holds an active Aave v3 position ~24.66% from liquidation (health factor 1.33). Collateral buffer is thin; re-verify solvency or require added margin before extending credit.",
+  "signals": {
+    "riskLabel": "AT_RISK",
+    "healthFactor": 1.3273,
+    "liquidationDistancePercent": 24.66,
+    "totalCollateralUSD": 55398.28,
+    "totalDebtUSD": 32555.71
   },
-  "confidence": 0.989,
+  "confidence": 1,
   "meta": {
-    "blockNumber": 50047225,
-    "timestamp": "2026-08-16T12:36:37.000Z",
+    "blockNumber": 50141866,
+    "timestamp": "2026-08-18T17:11:19.000Z",
     "source": "aave-v3-pool-contract",
     "chainId": 8453,
     "network": "base-mainnet"
@@ -67,21 +68,19 @@ Sample response (real, captured from production; the numbers are live and move b
 }
 ```
 
-Pick a wallet that currently has an active position (non-null health factor) so the auto-generated schema captures the populated shape. The wallet above was a live Aave v3 borrower (~$53k collateral / ~$30k debt, AT_RISK) captured on 2026-08-16; verify it still has debt, or grab another active borrower with `scripts/find-borrower.ts`, before capturing.
+Pick a wallet that currently has an active position (non-null health factor) so the verdict is a substantive RECHECK/BLOCK rather than ALLOW. The wallet above was a live Aave v3 borrower (~$55k collateral / ~$33k debt, AT_RISK -> RECHECK) captured on 2026-08-18; verify it still has debt, or grab another active borrower with `scripts/find-borrower.ts`, before capturing.
 
 ## Section 4: Semantics
 
-Intent: `TVL_LOOKUP`, a canonical Telegraph intent (On-Chain Analytics category, Tier A / WASM Exact Match scoring). Confirmed by the Telegraph team as the correct intent for Anchor.
-
-Ground truth is confirmed broad, not strict-TVL-only: the team confirmed broader on-chain intelligence is supported here. Anchor's existing response shape (risk label, health factor, liquidation distance, confidence) is accepted as-is, so no fields need to be added or renamed to fit the intent.
+Intent: `FRAUD_DETECTION`, a canonical Telegraph intent (Utilities & Security category). Canonical description: "Query asks how likely a specific entity, transaction or action is to be fraudulent." Anchor serves the on-chain-counterparty slice of it: given a wallet, is it financially safe to transact with. Recommended by the Telegraph team for Anchor.
 
 Field mapping:
 
 | Semantic role | Response field |
 | --- | --- |
-| label | `riskLabel` |
+| label / verdict | `verdict` |
 | confidence | `confidence` |
-| reason | `liquidationDistance.description` |
+| reason | `reasoning` |
 
 ## Section 5: On-Chain layout
 
@@ -102,7 +101,7 @@ Input schema:
     "wallet": {
       "type": "string",
       "pattern": "^0x[a-fA-F0-9]{40}$",
-      "description": "EVM wallet address to assess on Aave v3 (Base mainnet)."
+      "description": "EVM wallet address to assess for on-chain counterparty risk (Aave v3, Base mainnet)."
     }
   }
 }
@@ -114,29 +113,27 @@ Output schema:
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": [
-    "wallet", "protocol", "status", "riskLabel", "healthFactor",
-    "totalCollateralUSD", "totalDebtUSD", "liquidationThreshold",
-    "liquidationDistance", "confidence", "meta"
-  ],
+  "required": ["wallet", "protocol", "verdict", "reasoning", "signals", "confidence", "meta"],
   "properties": {
     "wallet": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
     "protocol": { "type": "string", "enum": ["aave-v3"] },
-    "status": { "type": "string", "enum": ["active", "no_debt", "no_position"] },
-    "riskLabel": {
-      "type": "string",
-      "enum": ["NONE", "SAFE", "MODERATE", "AT_RISK", "CRITICAL", "LIQUIDATABLE"]
-    },
-    "healthFactor": { "type": ["number", "null"] },
-    "totalCollateralUSD": { "type": "number" },
-    "totalDebtUSD": { "type": "number" },
-    "liquidationThreshold": { "type": "number" },
-    "liquidationDistance": {
+    "verdict": { "type": "string", "enum": ["ALLOW", "RECHECK", "BLOCK"] },
+    "reasoning": { "type": "string" },
+    "signals": {
       "type": "object",
-      "required": ["collateralDropPercentToLiquidation", "description"],
+      "required": [
+        "riskLabel", "healthFactor", "liquidationDistancePercent",
+        "totalCollateralUSD", "totalDebtUSD"
+      ],
       "properties": {
-        "collateralDropPercentToLiquidation": { "type": ["number", "null"] },
-        "description": { "type": "string" }
+        "riskLabel": {
+          "type": "string",
+          "enum": ["NONE", "SAFE", "MODERATE", "AT_RISK", "CRITICAL", "LIQUIDATABLE"]
+        },
+        "healthFactor": { "type": ["number", "null"] },
+        "liquidationDistancePercent": { "type": ["number", "null"] },
+        "totalCollateralUSD": { "type": "number" },
+        "totalDebtUSD": { "type": "number" }
       }
     },
     "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -188,13 +185,13 @@ curl "https://<deployment>.vercel.app/api/health-factor?wallet=0x<active-borrowe
 2. Register on-chain on Base Sepolia using the dedicated project wallet (needs a little Base Sepolia ETH for gas).
 3. Record the resulting integration address / tx here once done.
 
-### Registration record (done 2026-08-16)
+### Registration record (initial, 2026-08-16, TVL_LOOKUP)
 
-Miner registered successfully on-chain. Staged as **pending**; activates at the next epoch boundary (Telegraph nodes pick it up automatically, no restart).
+Miner registered successfully on-chain. Staged as **pending**; activated at the next epoch boundary. This registration used the (wrong) `TVL_LOOKUP` intent, see the intent-pivot note at the top of this doc.
 
 | Field | Value |
 | --- | --- |
-| Status | Confirmed on-chain, pending → activates next epoch |
+| Status | Confirmed on-chain, activated; superseded by the FRAUD_DETECTION re-registration below |
 | Network | Base Sepolia (chain 84532) |
 | Registered via | `integrate.telegraphprotocol.com` |
 | Tx hash | `0xd43dd72aa613b83a101ad010bafc763ff4d08556461d061c4aa7d5198f8cb22d` |
@@ -203,3 +200,14 @@ Miner registered successfully on-chain. Staged as **pending**; activates at the 
 | Integration ID | `anchor-risk-miner` |
 
 TODO: paste the full registry contract address and the assigned integration address once the explorer/dashboard shows them.
+
+### Re-registration record (FRAUD_DETECTION) — TODO
+
+Re-register with the updated YAML (intent `FRAUD_DETECTION`, endpoint `/api/risk-check`, sample + schemas from Sections 3/4/6 above). Ahmed confirmed re-registering carries no penalty. Record the tx hash and any new integration address here once done.
+
+| Field | Value |
+| --- | --- |
+| Status | pending re-registration |
+| Intent | `FRAUD_DETECTION` |
+| Endpoint | `/api/risk-check` |
+| Tx hash | _fill after re-register_ |

@@ -1,18 +1,18 @@
 # Anchor
 
-Verified on-chain risk data miner for lending protocols. Real-time liquidation-risk and health-factor signals for AI agents, read straight from the chain with per-response freshness metadata.
+On-chain counterparty-risk miner for autonomous agents. Given a wallet, Anchor answers one question: is it financially safe for my agent to extend credit to, lend to, or transact with this address? The answer is a clear ALLOW / RECHECK / BLOCK verdict with reasoning, derived from live lending-protocol solvency state on Base, with per-response freshness metadata.
 
-Built for the Telegraph Protocol Hackathon, Season I, Track 1 (Miner).
+Built for the Telegraph Protocol Hackathon, Season I, Track 1 (Miner). Serves the `FRAUD_DETECTION` intent.
 
 Live: https://anchor-miner.vercel.app
 
 ## What it does
 
-Given a wallet address, Anchor reads its aggregate Aave v3 position on Base mainnet and returns a derived risk signal, not just a raw number:
+Anchor reads a wallet's aggregate Aave v3 position on Base mainnet and turns it into an actionable counterparty-risk verdict, not just a raw number:
 
-- **Health factor** as reported by Aave.
-- **Liquidation distance**: how far the collateral can fall before the position becomes liquidatable, computed from health factor and liquidation threshold.
-- **Risk label**: a coarse category (SAFE, MODERATE, AT_RISK, CRITICAL, LIQUIDATABLE) an agent can branch on without parsing numbers.
+- **Verdict**: `ALLOW` (no solvency defect), `RECHECK` (thin buffer, re-verify before acting), or `BLOCK` (at or near liquidation, treat as distressed). An agent can branch on this directly.
+- **Reasoning**: a plain-language explanation that names the specific defect and the next step, so the verdict is actionable rather than opaque.
+- **Signals**: the underlying evidence, the Aave health factor, liquidation distance, collateral and debt, so the verdict is auditable.
 - **Freshness metadata**: the exact block number and timestamp the data was read at, plus a confidence score, so a consuming agent knows how current the signal is.
 
 The ground truth is the chain itself. There is no third-party API in the path.
@@ -20,13 +20,13 @@ The ground truth is the chain itself. There is no third-party API in the path.
 ## Endpoint
 
 ```
-GET /api/health-factor?wallet=0x<address>
+GET /api/risk-check?wallet=0x<address>
 ```
 
 ### Sample request
 
 ```
-curl "https://anchor-miner.vercel.app/api/health-factor?wallet=0x50B75AaCb1ed974F5c901a32BeE767de39CBb060"
+curl "https://anchor-miner.vercel.app/api/risk-check?wallet=0x50B75AaCb1ed974F5c901a32BeE767de39CBb060"
 ```
 
 ### Sample response
@@ -37,20 +37,19 @@ Real response from Base mainnet (values are live and move block to block):
 {
   "wallet": "0x50B75AaCb1ed974F5c901a32BeE767de39CBb060",
   "protocol": "aave-v3",
-  "status": "active",
-  "riskLabel": "AT_RISK",
-  "healthFactor": 1.3699,
-  "totalCollateralUSD": 53480.93,
-  "totalDebtUSD": 30450.98,
-  "liquidationThreshold": 0.78,
-  "liquidationDistance": {
-    "collateralDropPercentToLiquidation": 27,
-    "description": "Collateral value would need to drop ~27.00% (uniformly across the collateral basket) to trigger liquidation at current debt levels."
+  "verdict": "RECHECK",
+  "reasoning": "Counterparty holds an active Aave v3 position ~24.66% from liquidation (health factor 1.33). Collateral buffer is thin; re-verify solvency or require added margin before extending credit.",
+  "signals": {
+    "riskLabel": "AT_RISK",
+    "healthFactor": 1.3273,
+    "liquidationDistancePercent": 24.66,
+    "totalCollateralUSD": 55398.28,
+    "totalDebtUSD": 32555.71
   },
-  "confidence": 0.989,
+  "confidence": 1,
   "meta": {
-    "blockNumber": 50047225,
-    "timestamp": "2026-08-16T12:36:37.000Z",
+    "blockNumber": 50141866,
+    "timestamp": "2026-08-18T17:11:19.000Z",
     "source": "aave-v3-pool-contract",
     "chainId": 8453,
     "network": "base-mainnet"
@@ -62,42 +61,62 @@ Real response from Base mainnet (values are live and move block to block):
 
 | Field | Meaning |
 | --- | --- |
-| `status` | `active` (has debt), `no_debt` (collateral only), or `no_position` (nothing on Aave). |
-| `riskLabel` | `SAFE` (HF >= 2), `MODERATE` (1.5 to 2), `AT_RISK` (1.1 to 1.5), `CRITICAL` (1 to 1.1), `LIQUIDATABLE` (< 1), `NONE` (no debt). |
-| `healthFactor` | Aave health factor, 4dp. `null` when there is no debt (Aave reports infinite). |
-| `liquidationDistance.collateralDropPercentToLiquidation` | Uniform collateral drop that would push HF to 1. `null` when not applicable. |
+| `verdict` | `ALLOW`, `RECHECK`, or `BLOCK`. The headline call an agent acts on. |
+| `reasoning` | The specific solvency defect (if any) and the recommended next step. |
+| `signals.riskLabel` | `SAFE` (HF >= 2), `MODERATE` (1.5 to 2), `AT_RISK` (1.1 to 1.5), `CRITICAL` (1 to 1.1), `LIQUIDATABLE` (< 1), `NONE` (no debt). |
+| `signals.healthFactor` | Aave health factor, 4dp. `null` when there is no debt (Aave reports infinite). |
+| `signals.liquidationDistancePercent` | Uniform collateral drop that would push HF to 1. `null` when not applicable. |
 | `confidence` | Freshness score in `[0.5, 1]`; 1 at the chain head, decaying with block age. |
 | `meta.blockNumber` / `meta.timestamp` | The exact block the numbers were read at. The read is pinned to this block, so the signal is reproducible. |
 
 Error cases return a JSON `{ "error": ... }` body with status 400 (bad or missing `wallet`) or 502 (RPC read failure).
 
-## The liquidation-distance math
+### Underlying signal endpoint
 
-Aave's health factor is `HF = (collateral * liquidationThreshold) / debt`. A uniform drop `d` in collateral value scales HF by `(1 - d)`. Liquidation triggers at `HF = 1`, so:
+The raw liquidation-risk signal the verdict is built from is also exposed directly:
 
 ```
-collateralDropPercentToLiquidation = (1 - 1 / HF) * 100
+GET /api/health-factor?wallet=0x<address>
 ```
 
-This is a first-order, whole-basket estimate: it assumes all collateral moves together and debt is stable-valued. That assumption is stated in every response's `description` field rather than implied to be per-asset precision. Per-asset sensitivity is a candidate extension, not part of the MVP.
+It returns the health factor, liquidation distance and freshness metadata without the verdict wrapper. Useful when you want the numbers rather than the call.
+
+## How the verdict is derived
+
+Anchor maps the Aave health factor to a verdict:
+
+| Position | Verdict |
+| --- | --- |
+| SAFE / MODERATE (HF >= 1.5), or no debt / no position | `ALLOW` |
+| AT_RISK (1.1 <= HF < 1.5) | `RECHECK` |
+| CRITICAL / LIQUIDATABLE (HF < 1.1) | `BLOCK` |
+
+The health factor itself is `HF = (collateral * liquidationThreshold) / debt`. A uniform drop `d` in collateral value scales HF by `(1 - d)`; liquidation triggers at `HF = 1`, so the collateral drop to liquidation is `(1 - 1 / HF) * 100`.
+
+This is a first-order, whole-basket estimate: it assumes all collateral moves together and debt is stable-valued. That assumption is stated in the reasoning rather than implied to be per-asset precision. Deeper solvency signals (liquidation history, account maturity, asset backing) are a planned extension.
 
 ## Architecture
 
 ```
 api/
-  health-factor.ts   Vercel function: GET /api/health-factor
+  risk-check.ts      Vercel function: GET /api/risk-check (the FRAUD_DETECTION verdict)
+  health-factor.ts   Vercel function: GET /api/health-factor (underlying signal)
   index.ts           Vercel function: GET / (branded banner + JSON descriptor)
 src/
   config.ts          network, RPC, Aave Pool address, tunables
   aave.ts            Pool ABI + getUserAccountData read (block-pinned)
   risk.ts            pure signal math (liquidation distance, labels, freshness)
-  service.ts         orchestrator: wallet -> full response
-  types.ts           response contract
+  verdict.ts         pure verdict mapping (health factor -> ALLOW/RECHECK/BLOCK + reasoning)
+  service.ts         orchestrators: wallet -> signal, wallet -> verdict
+  types.ts           response contracts
   banner.ts          ASCII banner + service descriptor
 scripts/
   spike-aave.ts      one-off validation of the Aave read (dev only)
   dev-serve.ts       local server mirroring the Vercel routes (dev only)
+  find-borrower.ts   finds a live Aave borrower for samples (dev only)
   curl-transport.ts  local-only ethers HTTP shim (see Local development)
+  risk.test.ts       unit tests for the risk math
+  verdict.test.ts    unit tests for the verdict mapping
 ```
 
 - Data source: Aave v3 on Base mainnet (chain 8453). Reads are free (no gas).
@@ -109,7 +128,7 @@ scripts/
 ```
 npm install
 npm run dev        # serve on http://localhost:3000
-npm test           # unit tests for the risk math
+npm test           # unit tests for the risk + verdict logic
 npm run typecheck
 ```
 
