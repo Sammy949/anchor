@@ -31,7 +31,7 @@ Track 1 grade = **75% normalized performance within your intent** (your avg scor
 ## Current live state
 
 - **Intent:** FRAUD_DETECTION (5 miners total; Anchor is the only on-chain-wallet-risk one). Off TVL_LOOKUP.
-- **Re-registration tx (Base Sepolia):** `0x496ba72f85d5ce381f52f4e3231f4d51ebc0812a714c2b9de7059e879798bd61` (confirmed, block 45654149; submitted via a sponsored/relayer path). YAML pinned at IPFS `QmRX4WJYetq27YxFCZVbQjiaD9fgayGUECB7LAATuzCVoH`, SHA-256 verified against the pinned bytes.
+- **Re-registration (Base Sepolia):** active registration is **Reg #117** (FRAUD_DETECTION). The registry supersede-model means only the newest registration is live: Reg #93 (TVL_LOOKUP) and Reg #116 (an earlier FRAUD attempt) both show SUPERSEDED and are inert. Confirmation tx `0x496ba72f85d5ce381f52f4e3231f4d51ebc0812a714c2b9de7059e879798bd61` (real, block 45654149, relayer path). YAML pinned at IPFS `QmRX4WJYetq27YxFCZVbQjiaD9fgayGUECB7LAATuzCVoH`, SHA-256 `b72601e0…03cb2` verified against pinned bytes. Do not deregister the superseded rows or re-edit #117.
 - **Status:** staged pending → activates at the next epoch boundary. Grace period runs ~through 2026-08-23; the score earned in grace sets the starting leaderboard rank.
 - **Verdict mapping:** SAFE/MODERATE + no-debt/no-position → ALLOW; AT_RISK → RECHECK; CRITICAL/LIQUIDATABLE → BLOCK. Reasoning always names the defect + next step.
 

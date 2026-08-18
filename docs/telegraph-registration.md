@@ -205,20 +205,24 @@ TODO: paste the full registry contract address and the assigned integration addr
 
 ### Re-registration record (FRAUD_DETECTION) — done 2026-08-18
 
-Re-registered on-chain via the full wizard (Configure YAML → Upload to IPFS → Register). The Edit flow issues a new registrationId under the hood, so the wizard and Edit reach the same on-chain action; the newest registration for slug `anchor` (id 49) + the project wallet is the live one. Confirmed on-chain, staged pending → activates at the next epoch boundary. Verified live: Anchor now lists under FRAUD_DETECTION on devnode and no longer under TVL_LOOKUP.
+Re-registered on-chain under FRAUD_DETECTION. The registry uses a supersede model: only the newest registration for the slug is active, earlier ones show as SUPERSEDED (inactive, no traffic). Editing/re-registering issues a new registration ID rather than updating in place, so the registry lists the full history.
+
+**Active registration: Reg #117** (this is the durable identifier). Superseded: Reg #116 (an earlier FRAUD_DETECTION attempt the same evening) and Reg #93 (the original TVL_LOOKUP registration, 2026-08-16). Do not deregister the superseded rows (already inactive) and do not re-Edit #117 (correct as-is; re-editing restarts the grace clock). Verified live: Anchor (id 49) lists under FRAUD_DETECTION on devnode and no longer under TVL_LOOKUP.
 
 | Field | Value |
 | --- | --- |
-| Status | Confirmed on-chain, pending → activates next epoch |
+| Active registration | **Reg #117** |
+| Superseded | Reg #116 (FRAUD_DETECTION), Reg #93 (TVL_LOOKUP) |
+| Status | Active registration confirmed on-chain, pending → activates next epoch |
 | Intent | `FRAUD_DETECTION` |
 | Endpoint | `/api/risk-check` |
 | Network | Base Sepolia (chain 84532) |
-| Registered via | `integrate.telegraphprotocol.com` (full wizard) |
-| Tx hash | `0x496ba72f85d5ce381f52f4e3231f4d51ebc0812a714c2b9de7059e879798bd61` |
+| Registered via | `integrate.telegraphprotocol.com` (submitted via relayer path) |
+| Tx hash (from confirmation) | `0x496ba72f85d5ce381f52f4e3231f4d51ebc0812a714c2b9de7059e879798bd61` (real on-chain tx, block 45654149; the confirmation-screen hash — precise binding to Reg #117 vs #116 not verifiable from here due to the relayer path + indexer lag, so Reg #117 is the authoritative pointer) |
 | Explorer | https://sepolia.basescan.org/tx/0x496ba72f85d5ce381f52f4e3231f4d51ebc0812a714c2b9de7059e879798bd61 |
 | YAML IPFS URL | `https://gateway.pinata.cloud/ipfs/QmRX4WJYetq27YxFCZVbQjiaD9fgayGUECB7LAATuzCVoH` |
-| YAML SHA-256 | `0xb72601e0c657bb3d031c0c8f90dbf7732afc434b4b338defc4a4fe8d1a103cb2` (verified against pinned bytes) |
+| YAML SHA-256 | `0xb72601e0c657bb3d031c0c8f90dbf7732afc434b4b338defc4a4fe8d1a103cb2` (verified against pinned bytes; matches Reg #117 in the UI) |
 | Fee address | `0xC3d33eB15B59a092cC5663fAdF5BcAeBa5afF010` |
 | Floor price | `0.01` USDC |
 
-TODO: none. Re-registration complete and recorded.
+Note: grace period runs 7 days from the active registration (~through 2026-08-25 given the 8/18 re-registration). No score existed under the old registrations, so the reset is immaterial and well within the Sep 7 uptime window.
