@@ -2,7 +2,8 @@ import { getAddress, isAddress, JsonRpcProvider } from "ethers";
 import { NETWORK, PROTOCOL, SOURCE } from "./config.js";
 import { readAaveAccountData } from "./aave.js";
 import { freshnessConfidence, liquidationDistance, positionStatus, riskLabel, round2, round4 } from "./risk.js";
-import type { HealthFactorResponse } from "./types.js";
+import { toRiskCheck } from "./verdict.js";
+import type { HealthFactorResponse, RiskCheckResponse } from "./types.js";
 
 export class InvalidWalletError extends Error {
   constructor(input: string) {
@@ -66,4 +67,17 @@ export async function getRiskSignal(
       network: NETWORK.name,
     },
   };
+}
+
+/**
+ * FRAUD_DETECTION entry point: wallet -> ALLOW / RECHECK / BLOCK verdict.
+ * Wraps the same single on-chain read as getRiskSignal (no extra RPC round-trip)
+ * and derives the counterparty-risk verdict from it purely.
+ */
+export async function getRiskCheck(
+  walletInput: string,
+  nowMs: number = Date.now(),
+): Promise<RiskCheckResponse> {
+  const signal = await getRiskSignal(walletInput, nowMs);
+  return toRiskCheck(signal);
 }

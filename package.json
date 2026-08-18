@@ -2,13 +2,13 @@
   "name": "anchor",
   "version": "0.1.0",
   "private": true,
-  "description": "Verified on-chain risk data miner for lending protocols. Telegraph Protocol, Track 1 (Miner).",
+  "description": "On-chain counterparty-risk miner for lending protocols. Telegraph Protocol, Track 1 (Miner).",
   "type": "module",
   "scripts": {
     "spike": "tsx scripts/spike-aave.ts",
     "dev": "tsx scripts/dev-serve.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx scripts/risk.test.ts"
+    "test": "tsx --test scripts/risk.test.ts scripts/verdict.test.ts"
   },
   "dependencies": {
     "ethers": "6.13.1"

@@ -14,13 +14,14 @@ export function renderBanner(): string {
   return [
     WORDMARK,
     "",
-    "  verified on-chain risk signals for autonomous agents",
+    "  on-chain counterparty risk for autonomous agents",
     "",
-    `  liquidation-distance + health-factor feed  ::  ${PROTOCOL} on ${NETWORK.name}`,
+    `  is it safe to transact with this wallet?  ::  read live from ${PROTOCOL} on ${NETWORK.name}`,
     "",
-    "  GET /api/health-factor?wallet=0x<address>",
+    "  GET /api/risk-check?wallet=0x<address>      -> ALLOW / RECHECK / BLOCK + reasoning",
+    "  GET /api/health-factor?wallet=0x<address>   -> underlying liquidation-risk signal",
     "",
-    "  telegraph miner (track 1)  ::  intent TVL_LOOKUP",
+    "  telegraph miner (track 1)  ::  intent FRAUD_DETECTION",
     "",
   ].join("\n");
 }
@@ -30,12 +31,15 @@ export function serviceDescriptor() {
   return {
     name: "Anchor",
     description:
-      "Verified on-chain risk data miner. Real-time liquidation-risk and health-factor signals for lending protocols, with per-response freshness metadata.",
+      "On-chain counterparty-risk miner. Given a wallet, returns an ALLOW / RECHECK / BLOCK verdict on whether it is financially safe for an agent to extend credit to or transact with it, derived from live lending-protocol solvency state with per-response freshness metadata.",
     protocol: PROTOCOL,
     network: NETWORK.name,
     chainId: NETWORK.chainId,
-    endpoints: { healthFactor: "/api/health-factor?wallet=0x<address>" },
-    telegraph: { track: "miner", intent: "TVL_LOOKUP" },
+    endpoints: {
+      riskCheck: "/api/risk-check?wallet=0x<address>",
+      healthFactor: "/api/health-factor?wallet=0x<address>",
+    },
+    telegraph: { track: "miner", intent: "FRAUD_DETECTION" },
   };
 }
 

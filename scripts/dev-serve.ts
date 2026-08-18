@@ -9,7 +9,7 @@
  */
 import "./curl-transport.js";
 import { createServer } from "node:http";
-import { getRiskSignal, InvalidWalletError } from "../src/service.js";
+import { getRiskCheck, getRiskSignal, InvalidWalletError } from "../src/service.js";
 import { renderBanner, serviceDescriptor } from "../src/banner.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -39,6 +39,25 @@ const server = createServer(async (req, res) => {
       const signal = await getRiskSignal(wallet);
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(signal, null, 2));
+    } catch (err) {
+      const code = err instanceof InvalidWalletError ? 400 : 502;
+      res.writeHead(code, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/risk-check") {
+    const wallet = url.searchParams.get("wallet");
+    if (!wallet) {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "Missing required query parameter: wallet" }));
+      return;
+    }
+    try {
+      const result = await getRiskCheck(wallet);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify(result, null, 2));
     } catch (err) {
       const code = err instanceof InvalidWalletError ? 400 : 502;
       res.writeHead(code, { "content-type": "application/json" });
