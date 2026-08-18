@@ -55,7 +55,8 @@ Sample response (real, captured from production; the numbers are live and move b
     "healthFactor": 1.3273,
     "liquidationDistancePercent": 24.66,
     "totalCollateralUSD": 55398.28,
-    "totalDebtUSD": 32555.71
+    "totalDebtUSD": 32555.71,
+    "liquidationThreshold": 0.78
   },
   "confidence": 1,
   "meta": {
@@ -123,7 +124,7 @@ Output schema:
       "type": "object",
       "required": [
         "riskLabel", "healthFactor", "liquidationDistancePercent",
-        "totalCollateralUSD", "totalDebtUSD"
+        "totalCollateralUSD", "totalDebtUSD", "liquidationThreshold"
       ],
       "properties": {
         "riskLabel": {
@@ -133,7 +134,8 @@ Output schema:
         "healthFactor": { "type": ["number", "null"] },
         "liquidationDistancePercent": { "type": ["number", "null"] },
         "totalCollateralUSD": { "type": "number" },
-        "totalDebtUSD": { "type": "number" }
+        "totalDebtUSD": { "type": "number" },
+        "liquidationThreshold": { "type": "number" }
       }
     },
     "confidence": { "type": "number", "minimum": 0, "maximum": 1 },

@@ -40,6 +40,7 @@ export interface RiskSignals {
   liquidationDistancePercent: number | null;
   totalCollateralUSD: number;
   totalDebtUSD: number;
+  liquidationThreshold: number;
 }
 
 /**
