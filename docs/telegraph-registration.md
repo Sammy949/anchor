@@ -214,10 +214,11 @@ Re-registered on-chain via the full wizard (Configure YAML → Upload to IPFS �
 | Endpoint | `/api/risk-check` |
 | Network | Base Sepolia (chain 84532) |
 | Registered via | `integrate.telegraphprotocol.com` (full wizard) |
-| Tx hash | `0x496ba72f85d5ce38…9798bd61` (partial from confirmation; fill full hash from wallet/explorer) |
+| Tx hash | `0x496ba72f85d5ce381f52f4e3231f4d51ebc0812a714c2b9de7059e879798bd61` |
+| Explorer | https://sepolia.basescan.org/tx/0x496ba72f85d5ce381f52f4e3231f4d51ebc0812a714c2b9de7059e879798bd61 |
 | YAML IPFS URL | `https://gateway.pinata.cloud/ipfs/QmRX4WJYetq27YxFCZVbQjiaD9fgayGUECB7LAATuzCVoH` |
 | YAML SHA-256 | `0xb72601e0c657bb3d031c0c8f90dbf7732afc434b4b338defc4a4fe8d1a103cb2` (verified against pinned bytes) |
 | Fee address | `0xC3d33eB15B59a092cC5663fAdF5BcAeBa5afF010` |
 | Floor price | `0.01` USDC |
 
-TODO: paste the full tx hash from the wallet/explorer (confirmation showed it truncated).
+TODO: none. Re-registration complete and recorded.
