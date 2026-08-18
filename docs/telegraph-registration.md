@@ -203,13 +203,21 @@ Miner registered successfully on-chain. Staged as **pending**; activated at the 
 
 TODO: paste the full registry contract address and the assigned integration address once the explorer/dashboard shows them.
 
-### Re-registration record (FRAUD_DETECTION) — TODO
+### Re-registration record (FRAUD_DETECTION) — done 2026-08-18
 
-Re-register with the updated YAML (intent `FRAUD_DETECTION`, endpoint `/api/risk-check`, sample + schemas from Sections 3/4/6 above). Ahmed confirmed re-registering carries no penalty. Record the tx hash and any new integration address here once done.
+Re-registered on-chain via the full wizard (Configure YAML → Upload to IPFS → Register). The Edit flow issues a new registrationId under the hood, so the wizard and Edit reach the same on-chain action; the newest registration for slug `anchor` (id 49) + the project wallet is the live one. Confirmed on-chain, staged pending → activates at the next epoch boundary. Verified live: Anchor now lists under FRAUD_DETECTION on devnode and no longer under TVL_LOOKUP.
 
 | Field | Value |
 | --- | --- |
-| Status | pending re-registration |
+| Status | Confirmed on-chain, pending → activates next epoch |
 | Intent | `FRAUD_DETECTION` |
 | Endpoint | `/api/risk-check` |
-| Tx hash | _fill after re-register_ |
+| Network | Base Sepolia (chain 84532) |
+| Registered via | `integrate.telegraphprotocol.com` (full wizard) |
+| Tx hash | `0x496ba72f85d5ce38…9798bd61` (partial from confirmation; fill full hash from wallet/explorer) |
+| YAML IPFS URL | `https://gateway.pinata.cloud/ipfs/QmRX4WJYetq27YxFCZVbQjiaD9fgayGUECB7LAATuzCVoH` |
+| YAML SHA-256 | `0xb72601e0c657bb3d031c0c8f90dbf7732afc434b4b338defc4a4fe8d1a103cb2` (verified against pinned bytes) |
+| Fee address | `0xC3d33eB15B59a092cC5663fAdF5BcAeBa5afF010` |
+| Floor price | `0.01` USDC |
+
+TODO: paste the full tx hash from the wallet/explorer (confirmation showed it truncated).
