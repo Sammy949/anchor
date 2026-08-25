@@ -32,6 +32,42 @@ export interface RawInput {
   query?: string | null;
 }
 
+/**
+ * Gather the wallet / question inputs from a request, wherever they land. We do
+ * not control how a routed FRAUD_DETECTION request reaches us: it may be a GET
+ * with query params, a POST with a JSON body, or a raw string body, and the
+ * natural-language question may sit under any of several field names (or in the
+ * `wallet` slot, the only field the registered schema advertises). Query params
+ * win over the body; the first non-empty candidate wins within each. This is the
+ * seam that lets the classifier see the question however the caller delivers it.
+ */
+export function extractInput(
+  query: Record<string, string | string[] | undefined> = {},
+  body?: unknown,
+): RawInput {
+  const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const rawBodyStr = typeof body === "string" ? body : undefined;
+  const wallet = pickString(query.wallet, b.wallet);
+  const question = pickString(
+    query.query,
+    query.q,
+    query.question,
+    b.query,
+    b.q,
+    b.question,
+    rawBodyStr,
+  );
+  return { wallet, query: question };
+}
+
+function pickString(...vals: unknown[]): string | undefined {
+  for (const v of vals) {
+    const s = Array.isArray(v) ? v[0] : v;
+    if (typeof s === "string" && s.trim() !== "") return s;
+  }
+  return undefined;
+}
+
 export type Classification =
   | { kind: "wallet"; wallet: string } // checksummed address
   | { kind: "knowledge"; question: string }

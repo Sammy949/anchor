@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyQuery } from "../src/classify.js";
+import { classifyQuery, extractInput } from "../src/classify.js";
 
 const ADDR = "0x50B75AaCb1ed974F5c901a32BeE767de39CBb060"; // valid checksum
 const ADDR_LOWER = ADDR.toLowerCase();
@@ -85,4 +85,38 @@ test("a 64-char tx hash is NOT mistaken for an address", () => {
   const c = classifyQuery({ query: `Look up transaction ${txHash}` });
   // No valid 40-nibble address is embedded, so this is not a wallet query.
   assert.notEqual(c.kind, "wallet");
+});
+
+// --- extractInput: gather wallet/question from query params OR body ---
+
+test("extractInput reads wallet + query from query params", () => {
+  assert.deepEqual(extractInput({ wallet: ADDR, query: "hi" }), { wallet: ADDR, query: "hi" });
+});
+
+test("extractInput accepts q and question as query aliases", () => {
+  assert.equal(extractInput({ q: "via q" }).query, "via q");
+  assert.equal(extractInput({ question: "via question" }).query, "via question");
+});
+
+test("extractInput falls back to a JSON body when query params are absent", () => {
+  const got = extractInput({}, { wallet: ADDR, query: "What is Wirecard?" });
+  assert.deepEqual(got, { wallet: ADDR, query: "What is Wirecard?" });
+});
+
+test("extractInput: query params win over the body", () => {
+  const got = extractInput({ query: "from-query" }, { query: "from-body" });
+  assert.equal(got.query, "from-query");
+});
+
+test("extractInput treats a raw string body as the question", () => {
+  assert.equal(extractInput({}, "What characterized OneCoin?").query, "What characterized OneCoin?");
+});
+
+test("extractInput collapses a repeated param to its first value", () => {
+  assert.equal(extractInput({ query: ["first", "second"] }).query, "first");
+});
+
+test("extractInput ignores empty/whitespace and returns undefined when nothing usable", () => {
+  assert.deepEqual(extractInput({ wallet: "  ", query: "" }, {}), { wallet: undefined, query: undefined });
+  assert.deepEqual(extractInput(), { wallet: undefined, query: undefined });
 });

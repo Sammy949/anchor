@@ -10,6 +10,7 @@
 import "./curl-transport.js";
 import { createServer } from "node:http";
 import { answerFraudQuery, getRiskSignal, InvalidWalletError, MissingInputError } from "../src/service.js";
+import { extractInput } from "../src/classify.js";
 import { KnowledgeUnavailableError } from "../src/knowledge.js";
 import { renderBanner, serviceDescriptor } from "../src/banner.js";
 
@@ -49,15 +50,14 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/risk-check") {
-    const wallet = url.searchParams.get("wallet") ?? undefined;
-    const query = url.searchParams.get("query") ?? url.searchParams.get("q") ?? undefined;
-    if (!wallet && !query) {
+    const input = extractInput(Object.fromEntries(url.searchParams));
+    if (!input.wallet && !input.query) {
       res.writeHead(400, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "Missing input: provide a wallet to assess, or a query to answer." }));
       return;
     }
     try {
-      const result = await answerFraudQuery({ wallet, query });
+      const result = await answerFraudQuery(input);
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(result, null, 2));
     } catch (err) {
