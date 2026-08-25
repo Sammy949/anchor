@@ -9,7 +9,8 @@
  */
 import "./curl-transport.js";
 import { createServer } from "node:http";
-import { getRiskCheck, getRiskSignal, InvalidWalletError } from "../src/service.js";
+import { answerFraudQuery, getRiskSignal, InvalidWalletError, MissingInputError } from "../src/service.js";
+import { KnowledgeUnavailableError } from "../src/knowledge.js";
 import { renderBanner, serviceDescriptor } from "../src/banner.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -48,18 +49,24 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/risk-check") {
-    const wallet = url.searchParams.get("wallet");
-    if (!wallet) {
+    const wallet = url.searchParams.get("wallet") ?? undefined;
+    const query = url.searchParams.get("query") ?? url.searchParams.get("q") ?? undefined;
+    if (!wallet && !query) {
       res.writeHead(400, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: "Missing required query parameter: wallet" }));
+      res.end(JSON.stringify({ error: "Missing input: provide a wallet to assess, or a query to answer." }));
       return;
     }
     try {
-      const result = await getRiskCheck(wallet);
+      const result = await answerFraudQuery({ wallet, query });
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(result, null, 2));
     } catch (err) {
-      const code = err instanceof InvalidWalletError ? 400 : 502;
+      const code =
+        err instanceof InvalidWalletError || err instanceof MissingInputError
+          ? 400
+          : err instanceof KnowledgeUnavailableError
+            ? 503
+            : 502;
       res.writeHead(code, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
     }

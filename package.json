@@ -8,7 +8,7 @@
     "spike": "tsx scripts/spike-aave.ts",
     "dev": "tsx scripts/dev-serve.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test scripts/risk.test.ts scripts/verdict.test.ts"
+    "test": "tsx --test scripts/risk.test.ts scripts/verdict.test.ts scripts/classify.test.ts scripts/knowledge.test.ts scripts/service.test.ts"
   },
   "dependencies": {
     "ethers": "6.13.1"
