@@ -55,7 +55,8 @@ Sample response (real, captured from production; the numbers are live and move b
     "healthFactor": 1.3273,
     "liquidationDistancePercent": 24.66,
     "totalCollateralUSD": 55398.28,
-    "totalDebtUSD": 32555.71
+    "totalDebtUSD": 32555.71,
+    "liquidationThreshold": 0.78
   },
   "confidence": 1,
   "meta": {
@@ -123,7 +124,7 @@ Output schema:
       "type": "object",
       "required": [
         "riskLabel", "healthFactor", "liquidationDistancePercent",
-        "totalCollateralUSD", "totalDebtUSD"
+        "totalCollateralUSD", "totalDebtUSD", "liquidationThreshold"
       ],
       "properties": {
         "riskLabel": {
@@ -133,7 +134,8 @@ Output schema:
         "healthFactor": { "type": ["number", "null"] },
         "liquidationDistancePercent": { "type": ["number", "null"] },
         "totalCollateralUSD": { "type": "number" },
-        "totalDebtUSD": { "type": "number" }
+        "totalDebtUSD": { "type": "number" },
+        "liquidationThreshold": { "type": "number" }
       }
     },
     "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -201,13 +203,26 @@ Miner registered successfully on-chain. Staged as **pending**; activated at the 
 
 TODO: paste the full registry contract address and the assigned integration address once the explorer/dashboard shows them.
 
-### Re-registration record (FRAUD_DETECTION) — TODO
+### Re-registration record (FRAUD_DETECTION) — done 2026-08-18
 
-Re-register with the updated YAML (intent `FRAUD_DETECTION`, endpoint `/api/risk-check`, sample + schemas from Sections 3/4/6 above). Ahmed confirmed re-registering carries no penalty. Record the tx hash and any new integration address here once done.
+Re-registered on-chain under FRAUD_DETECTION. The registry uses a supersede model: only the newest registration for the slug is active, earlier ones show as SUPERSEDED (inactive, no traffic). Editing/re-registering issues a new registration ID rather than updating in place, so the registry lists the full history.
+
+**Active registration: Reg #117** (this is the durable identifier). Superseded: Reg #116 (an earlier FRAUD_DETECTION attempt the same evening) and Reg #93 (the original TVL_LOOKUP registration, 2026-08-16). Do not deregister the superseded rows (already inactive) and do not re-Edit #117 (correct as-is; re-editing restarts the grace clock). Verified live: Anchor (id 49) lists under FRAUD_DETECTION on devnode and no longer under TVL_LOOKUP.
 
 | Field | Value |
 | --- | --- |
-| Status | pending re-registration |
+| Active registration | **Reg #117** |
+| Superseded | Reg #116 (FRAUD_DETECTION), Reg #93 (TVL_LOOKUP) |
+| Status | Active registration confirmed on-chain, pending → activates next epoch |
 | Intent | `FRAUD_DETECTION` |
 | Endpoint | `/api/risk-check` |
-| Tx hash | _fill after re-register_ |
+| Network | Base Sepolia (chain 84532) |
+| Registered via | `integrate.telegraphprotocol.com` (submitted via relayer path) |
+| Tx hash (from confirmation) | `0x496ba72f85d5ce381f52f4e3231f4d51ebc0812a714c2b9de7059e879798bd61` (real on-chain tx, block 45654149; the confirmation-screen hash — precise binding to Reg #117 vs #116 not verifiable from here due to the relayer path + indexer lag, so Reg #117 is the authoritative pointer) |
+| Explorer | https://sepolia.basescan.org/tx/0x496ba72f85d5ce381f52f4e3231f4d51ebc0812a714c2b9de7059e879798bd61 |
+| YAML IPFS URL | `https://gateway.pinata.cloud/ipfs/QmRX4WJYetq27YxFCZVbQjiaD9fgayGUECB7LAATuzCVoH` |
+| YAML SHA-256 | `0xb72601e0c657bb3d031c0c8f90dbf7732afc434b4b338defc4a4fe8d1a103cb2` (verified against pinned bytes; matches Reg #117 in the UI) |
+| Fee address | `0xC3d33eB15B59a092cC5663fAdF5BcAeBa5afF010` |
+| Floor price | `0.01` USDC |
+
+Note: grace period runs 7 days from the active registration (~through 2026-08-25 given the 8/18 re-registration). No score existed under the old registrations, so the reset is immaterial and well within the Sep 7 uptime window.

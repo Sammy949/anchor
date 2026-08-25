@@ -12,5 +12,5 @@
     "lib": ["ES2022"]
   },
   "include": ["api", "src", "scripts"],
-  "exclude": ["node_modules", "scripts/spike-aave.ts"]
+  "exclude": ["node_modules", "scripts/spike-aave.ts", "scripts/ask.ts"]
 }

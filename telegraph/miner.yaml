@@ -1,0 +1,170 @@
+version: "1"
+kind: miner
+id: 49
+slug: anchor
+protocol: generic
+name: Anchor
+description: >
+  On-chain counterparty-risk miner. Given a wallet, returns an ALLOW / RECHECK / BLOCK verdict on whether it is financially safe for an agent to extend credit to or transact with it, derived from live Aave v3 lending-protocol solvency state on Base, with a plain-language reason and block-pinned freshness metadata.
+
+base_url: https://anchor-miner.vercel.app
+
+docs:
+  documentation: https://github.com/Sammy949/anchor/blob/main/README.md
+  repository: https://github.com/Sammy949/anchor
+  twitter: https://x.com/I_am_SamY01
+
+limitations:
+  - code: SINGLE_PROTOCOL
+    message: >
+      Assesses on-chain solvency risk from Aave v3 on Base mainnet only. The verdict reflects lending-position risk (leverage, liquidation proximity), not scam or drainer detection. Liquidation distance assumes a uniform price drop across the collateral basket rather than modeling per-asset volatility independently.
+
+auth:
+  type: none
+
+rate_limit_per_sec: 1
+cache_ttl_sec: 12
+
+endpoints:
+  - path: /risk-check
+    external_path: /api/risk-check
+    method: GET
+
+input_schema:
+  type: object
+  properties:
+    wallet:
+        type: string
+        description: Ethereum wallet address to assess for on-chain counterparty risk (Aave v3 position on Base mainnet).
+
+output_schema:
+  type: object
+  properties:
+    wallet:
+        type: string
+        description: Wallet address the risk assessment applies to.
+    protocol:
+        type: string
+        description: Lending protocol the position was read from (e.g. aave-v3)
+    verdict:
+        type: string
+        description: "Counterparty-risk verdict an agent can act on: ALLOW, RECHECK, or BLOCK."
+    reasoning:
+        type: string
+        description: Plain-language explanation naming the specific solvency defect and the recommended next step.
+    signals:
+        type: object
+        description: "Underlying evidence the verdict is derived from: risk label, health factor, liquidation distance, collateral, debt, and liquidation threshold."
+    confidence:
+        type: number
+        description: >
+                Confidence score (0–1) reflecting freshness of the read; decays as block age increases.
+    meta:
+        type: object
+        description: "Metadata: block number, timestamp, source, chain ID, and network the data was read from."
+  required:
+    - wallet
+    - protocol
+    - verdict
+    - reasoning
+    - signals
+    - confidence
+    - meta
+
+semantics:
+  signal_mapping:
+    confidence_field: confidence
+    label_field: verdict
+    reason_field: reasoning
+  supported_intents:
+    - FRAUD_DETECTION
+
+on_chain:
+  description: >
+    Captures a verified snapshot of a wallet's on-chain counterparty risk, including the ALLOW/RECHECK/BLOCK verdict, the underlying Aave v3 health factor, liquidation distance, and risk classification, pinned to the exact block it was read at. Stored on-chain to make Anchor's verdict independently verifiable rather than merely claimed.
+  transform: direct
+  fields:
+    strings:
+      - index: 0
+        name: wallet
+        description: The Ethereum wallet address this risk assessment applies to.
+        source_path: wallet
+      - index: 1
+        name: protocol
+        description: The lending protocol this position was read from (e.g. aave-v3).
+        source_path: protocol
+      - index: 2
+        name: verdict
+        description: >
+          Counterparty-risk verdict: ALLOW (no solvency defect), RECHECK (thin buffer, re-verify), or BLOCK (at or near liquidation).
+        source_path: verdict
+      - index: 3
+        name: riskLabel
+        description: >
+          Plain-language risk classification: SAFE, MODERATE, AT_RISK, CRITICAL, or LIQUIDATABLE.
+        source_path: signals.riskLabel
+      - index: 4
+        name: reasoning
+        description: >
+          Human-readable explanation of the solvency defect and the recommended next step.
+        source_path: reasoning
+      - index: 5
+        name: meta_timestamp
+        description: ISO 8601 timestamp of the block this data was read at.
+        source_path: meta.timestamp
+      - index: 6
+        name: meta_source
+        description: Data source identifier; the on-chain contract this reading came from.
+        source_path: meta.source
+      - index: 7
+        name: meta_network
+        description: The blockchain network this position was read from (e.g. base-mainnet).
+        source_path: meta.network
+    integers:
+      - index: 0
+        name: healthFactor
+        description: >
+          Aave health factor, scaled ×10,000 for on-chain integer storage. Below 10,000 (i.e. below 1.0) means the position is eligible for liquidation.
+        source_path: signals.healthFactor
+        multiplier: 10000
+      - index: 1
+        name: totalCollateralUSD
+        description: Total collateral value in USD, scaled ×10,000 for on-chain integer storage.
+        source_path: signals.totalCollateralUSD
+        multiplier: 10000
+      - index: 2
+        name: totalDebtUSD
+        description: Total borrowed debt value in USD, scaled ×10,000 for on-chain integer storage.
+        source_path: signals.totalDebtUSD
+        multiplier: 10000
+      - index: 3
+        name: liquidationThreshold
+        description: >
+          Aave's liquidation threshold ratio for this position, scaled ×10,000 for on-chain integer storage.
+        source_path: signals.liquidationThreshold
+        multiplier: 10000
+      - index: 4
+        name: liquidationDistancePercent
+        description: >
+          Percentage the collateral value would need to drop, uniformly across the basket, to trigger liquidation at current debt levels.
+        source_path: signals.liquidationDistancePercent
+      - index: 5
+        name: confidence
+        description: >
+          Confidence score (0 to 1, scaled ×10,000 for on-chain storage) reflecting freshness of the read; decays as block age increases.
+        source_path: confidence
+        multiplier: 10000
+      - index: 6
+        name: meta_blockNumber
+        description: >
+          The Base mainnet block number this data was read at, proving the read is pinned to a specific, reproducible chain state.
+        source_path: meta.blockNumber
+      - index: 7
+        name: meta_chainId
+        description: The chain ID of the network this data was read from (8453 = Base mainnet).
+        source_path: meta.chainId
+  request:
+    - endpoint: risk-check
+      method: POST
+      body:
+        wallet: { source: strings.0 }

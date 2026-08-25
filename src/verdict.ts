@@ -73,6 +73,7 @@ export function toRiskCheck(signal: HealthFactorResponse): RiskCheckResponse {
       liquidationDistancePercent: signal.liquidationDistance.collateralDropPercentToLiquidation,
       totalCollateralUSD: signal.totalCollateralUSD,
       totalDebtUSD: signal.totalDebtUSD,
+      liquidationThreshold: signal.liquidationThreshold,
     },
     confidence: signal.confidence,
     meta: signal.meta,

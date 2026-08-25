@@ -44,7 +44,8 @@ Real response from Base mainnet (values are live and move block to block):
     "healthFactor": 1.3273,
     "liquidationDistancePercent": 24.66,
     "totalCollateralUSD": 55398.28,
-    "totalDebtUSD": 32555.71
+    "totalDebtUSD": 32555.71,
+    "liquidationThreshold": 0.78
   },
   "confidence": 1,
   "meta": {
@@ -66,6 +67,7 @@ Real response from Base mainnet (values are live and move block to block):
 | `signals.riskLabel` | `SAFE` (HF >= 2), `MODERATE` (1.5 to 2), `AT_RISK` (1.1 to 1.5), `CRITICAL` (1 to 1.1), `LIQUIDATABLE` (< 1), `NONE` (no debt). |
 | `signals.healthFactor` | Aave health factor, 4dp. `null` when there is no debt (Aave reports infinite). |
 | `signals.liquidationDistancePercent` | Uniform collateral drop that would push HF to 1. `null` when not applicable. |
+| `signals.liquidationThreshold` | Aave's liquidation-threshold ratio for the position (e.g. 0.78). |
 | `confidence` | Freshness score in `[0.5, 1]`; 1 at the chain head, decaying with block age. |
 | `meta.blockNumber` / `meta.timestamp` | The exact block the numbers were read at. The read is pinned to this block, so the signal is reproducible. |
 

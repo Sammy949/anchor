@@ -87,6 +87,7 @@ test("toRiskCheck carries verdict, reasoning, signals and freshness through", ()
   assert.equal(out.signals.liquidationDistancePercent, 24.95);
   assert.equal(out.signals.totalCollateralUSD, 55176.08);
   assert.equal(out.signals.totalDebtUSD, 32301.3);
+  assert.equal(out.signals.liquidationThreshold, 0.78);
   assert.equal(out.confidence, 0.97);
   assert.equal(out.meta.blockNumber, 50127516); // freshness passed through unchanged
 });

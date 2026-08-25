@@ -3,12 +3,22 @@ import { NETWORK, PROTOCOL, SOURCE } from "./config.js";
 import { readAaveAccountData } from "./aave.js";
 import { freshnessConfidence, liquidationDistance, positionStatus, riskLabel, round2, round4 } from "./risk.js";
 import { toRiskCheck } from "./verdict.js";
-import type { HealthFactorResponse, RiskCheckResponse } from "./types.js";
+import { classifyQuery, type RawInput } from "./classify.js";
+import { callGroq, getKnowledgeAnswer, type Completer } from "./knowledge.js";
+import type { FraudResponse, HealthFactorResponse, RiskCheckResponse } from "./types.js";
 
 export class InvalidWalletError extends Error {
   constructor(input: string) {
     super(`Not a valid EVM address: ${input}`);
     this.name = "InvalidWalletError";
+  }
+}
+
+/** Thrown when a request carries neither a wallet nor a question to answer. */
+export class MissingInputError extends Error {
+  constructor() {
+    super("Provide a `wallet` address to assess, or a `query` describing a fraud-knowledge question.");
+    this.name = "MissingInputError";
   }
 }
 
@@ -80,4 +90,41 @@ export async function getRiskCheck(
 ): Promise<RiskCheckResponse> {
   const signal = await getRiskSignal(walletInput, nowMs);
   return toRiskCheck(signal);
+}
+
+/** Injectable dependencies for answerFraudQuery, so the router is testable without the network. */
+export interface FraudDeps {
+  riskCheck?: (walletInput: string, nowMs: number) => Promise<RiskCheckResponse>;
+  complete?: Completer;
+}
+
+/**
+ * Unified FRAUD_DETECTION entry point. Classifies the request and routes it:
+ * a wallet-shaped query runs the exact existing on-chain solvency path; a
+ * knowledge-shaped one is answered by the LLM and formatted into the same
+ * response shape. Malformed or empty input fails with a typed error the
+ * transport maps to a 400.
+ *
+ * The wallet path is untouched: `getRiskSignal`/`getRiskCheck` behave exactly as
+ * before, so Anchor's proven on-chain capability cannot regress.
+ */
+export async function answerFraudQuery(
+  input: RawInput,
+  deps: FraudDeps = {},
+  nowMs: number = Date.now(),
+): Promise<FraudResponse> {
+  const riskCheck = deps.riskCheck ?? getRiskCheck;
+  const complete = deps.complete ?? callGroq;
+
+  const classification = classifyQuery(input);
+  switch (classification.kind) {
+    case "wallet":
+      return riskCheck(classification.wallet, nowMs);
+    case "knowledge":
+      return getKnowledgeAnswer(classification.question, complete, nowMs);
+    case "malformed_wallet":
+      throw new InvalidWalletError(classification.input);
+    case "empty":
+      throw new MissingInputError();
+  }
 }

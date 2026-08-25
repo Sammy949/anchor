@@ -40,6 +40,7 @@ export interface RiskSignals {
   liquidationDistancePercent: number | null;
   totalCollateralUSD: number;
   totalDebtUSD: number;
+  liquidationThreshold: number;
 }
 
 /**
@@ -84,3 +85,33 @@ export interface HealthFactorResponse {
     network: string;
   };
 }
+
+/**
+ * Knowledge-path response, served for FRAUD_DETECTION questions that carry no
+ * wallet (e.g. "What characterized the BitConnect Ponzi scheme?"). It reuses the
+ * SAME top-level field names as RiskCheckResponse so the already-registered
+ * Telegraph output schema stays valid without re-registration; only what
+ * populates the fields differs. Fields that have no meaning for a knowledge
+ * answer (wallet, protocol, signals, block-pinned meta) are null.
+ */
+export interface KnowledgeResponse {
+  wallet: null;
+  protocol: null;
+  verdict: "INFO"; // not a solvency call; flags this as an informational answer
+  reasoning: string; // the LLM's factual answer to the fraud-knowledge question
+  signals: null;
+  confidence: number; // fixed reasonable value; no block-freshness concept here
+  meta: {
+    blockNumber: null;
+    timestamp: string; // ISO-8601 wall-clock time the answer was produced
+    source: string; // "llm-fraud-knowledge"
+    model: string; // the LLM that produced the answer
+  };
+}
+
+/**
+ * The full FRAUD_DETECTION answer Anchor can return from a single endpoint: an
+ * on-chain solvency verdict when a wallet is present, or a knowledge answer when
+ * one is not. Both share the verdict/reasoning/confidence/meta headline shape.
+ */
+export type FraudResponse = RiskCheckResponse | KnowledgeResponse;
