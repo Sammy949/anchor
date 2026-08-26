@@ -58,6 +58,19 @@ export const GROQ = {
   // Under a Vercel function budget (~10s). Warm calls are ~1.5s; this is headroom
   // for an occasional cold model start before failing gracefully.
   timeoutMs: Number(process.env.ANCHOR_LLM_TIMEOUT_MS ?? 9000),
+  // gpt-oss-120b is a REASONING model: it spends completion tokens on hidden
+  // reasoning before the answer. "low" keeps that to a minimum so the answer
+  // itself is what fills the budget — without it, hard questions burn the whole
+  // cap on reasoning and return an EMPTY answer (surfaced as a 503 that scores
+  // ~0). Groq gpt-oss accepts: low | medium | high.
+  reasoningEffort: process.env.ANCHOR_LLM_REASONING_EFFORT ?? "low",
+  // Headroom so reasoning + answer both fit, WITHOUT over-reserving against the
+  // Groq free-tier TPM cap (8000 tok/min): the rate limiter charges ~prompt +
+  // max_tokens per request, so a needlessly-large cap causes 429s. With
+  // reasoning_effort=low the answer itself only runs ~180-290 tokens, so 1024 is
+  // ample and keeps TPM usage well under the cap at validator cadence. (512 was
+  // the old value that truncated once reasoning ate the budget.)
+  maxTokens: Number(process.env.ANCHOR_LLM_MAX_TOKENS ?? 1024),
 };
 
 // Data-source tag for a knowledge answer, parallel to SOURCE for the chain path.
