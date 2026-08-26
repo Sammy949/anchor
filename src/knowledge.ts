@@ -89,7 +89,8 @@ export async function callGroq(question: string): Promise<string> {
           { role: "user", content: question },
         ],
         temperature: 0.2, // low: factual recall, not creativity
-        max_tokens: 512,
+        reasoning_effort: GROQ.reasoningEffort, // minimize hidden reasoning so the answer survives the token budget
+        max_tokens: GROQ.maxTokens,
       }),
       signal: controller.signal,
     });
