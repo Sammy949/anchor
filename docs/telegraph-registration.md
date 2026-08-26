@@ -226,3 +226,33 @@ Re-registered on-chain under FRAUD_DETECTION. The registry uses a supersede mode
 | Floor price | `0.01` USDC |
 
 Note: grace period runs 7 days from the active registration (~through 2026-08-25 given the 8/18 re-registration). No score existed under the old registrations, so the reset is immaterial and well within the Sep 7 uptime window.
+
+> **Superseded by Reg #223 (2026-08-26).** Reg #117 is no longer the active registration — see the record below.
+
+### Re-registration record (add `query` knowledge path + widened schema) — done 2026-08-26
+
+Re-registered to advertise the `query` input field so the router forwards natural-language fraud-knowledge questions (previously only `wallet` was declared, so the LLM knowledge path was never reached via routing — the root cause diagnosed from explorer data). Also widened `output_schema` to accept the knowledge response shape and dropped the `on_chain` layout block (verifiability nicety; not read by the scorer, and it nulled out on knowledge responses). Ahmed confirmed a same-intent schema edit carries no lasting penalty (ranking recomputes each epoch on real answer quality). No code changed — the endpoint already handled `query`.
+
+**Active registration: Reg #223.** Superseded: Reg #117, #116 (FRAUD_DETECTION), #93 (TVL_LOOKUP). Do not re-Edit #223.
+
+| Field | Value |
+| --- | --- |
+| Active registration | **Reg #223** |
+| Superseded | Reg #117, #116 (FRAUD_DETECTION), #93 (TVL_LOOKUP) |
+| Status | Confirmed on-chain; staged pending, activates ~1 min after the registration event (no epoch wait) |
+| Intent | `FRAUD_DETECTION` |
+| Endpoint | `/api/risk-check` (GET; accepts `wallet` or `query`) |
+| Network | Base Sepolia (chain 84532) |
+| Registered via | `integrate.telegraphprotocol.com` |
+| Registry contract | `0x5a2324aA18613FAD4e44bDF0d6c73Ec1f6D87ff8` (full address, previously truncated) |
+| Tx hash | `0x0cbf8f4826b5e111…00fa8f85` (confirmation screen; paste full hash from explorer) |
+| YAML IPFS URL | `https://gateway.pinata.cloud/ipfs/QmYQrvTDePcPToADsWdvEZzqmpFmGk9EqDKKjUpYPpMDKF` |
+| YAML SHA-256 | `0x8f4dfb20e1e1b710028b709e628b56409a3ed2b3582f2bddca2d2c19415f8700` (authoritative; matches the on-chain hash) |
+| Fee address | `0xC3d33eB15B59a092cC5663fAdF5BcAeBa5afF010` |
+| Floor price | `0.01` USDC |
+
+Verified: fetched the pinned YAML back from IPFS and confirmed it carries all three changes (`query` in `input_schema`, `INFO` + nullable types in `output_schema`, no `on_chain`).
+
+**Caveat — the wizard re-serialized the YAML.** The pinned bytes are not identical to the local `telegraph/miner.yaml`: the wizard parsed and re-emitted the YAML (inline lists/flow scalars became block form; long descriptions became folded `>` scalars). So the pinned SHA-256 (`0x8f4d…`) differs from `sha256sum telegraph/miner.yaml` (`d811…`) even though the content is equivalent — do not expect the local file to reproduce the on-chain hash. One real defect from the re-emit: the string `"null"` in each nullable `type: [string, "null"]` was written back as a bare YAML `null` **value** (`- null`), which is technically malformed JSON-Schema (a `type` array element must be the string `"null"`). Impact is almost certainly benign because scoring reads the `verdict`/`reasoning`/`confidence` signal mapping (all valid on both paths), not a strict full-response schema validation. If knowledge queries do not begin scoring after indexing, this is the prime suspect — the emitter-proof fix is to drop the `type` key entirely on `wallet`/`protocol`/`signals` (leave them unconstrained and non-required) so there is no `"null"` for the wizard to mangle, then re-pin.
+
+**Verified live 2026-08-26** (paid direct calls via `scripts/ask.ts`, testnet USDC, over the Telegraph node): devnode lists Anchor #49 active under FRAUD_DETECTION serving the Reg #223 YAML (input props `[query, wallet]`, `verdict` enum incl. `INFO`), and #117/#116 show SUPERSEDED. `POST /engine/v1/ask/49` with `payload: {wallet}` → `verdict: ALLOW`; with `payload: {query: "Who was behind the BitConnect Ponzi scheme?"}` → `verdict: INFO` + a real LLM answer (`source: llm-fraud-knowledge`). Both paths answer correctly over the wire. The `null`-in-type re-serialization caveat proved benign — devnode parsed the schema cleanly. Note: the node's **auto-router** `/engine/v1/ask` (LLM intent classification via litellm→AWS Bedrock) was returning HTTP 500 `BedrockException validation_error` for all queries during this test — a Telegraph-side infra issue that blocks organic routing but not direct calls and not spot-check scoring.

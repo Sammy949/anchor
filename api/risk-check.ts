@@ -1,21 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { answerFraudQuery, InvalidWalletError, MissingInputError } from "../src/service.js";
+import { extractInput } from "../src/classify.js";
 import { KnowledgeUnavailableError } from "../src/knowledge.js";
 import { logBannerOnce } from "../src/banner.js";
 import { CACHE_TTL_SECONDS } from "../src/config.js";
 
 logBannerOnce();
 
-/** Collapse a possibly-repeated query param to a single string. */
-function first(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   // Public read-only feed: allow any origin so browser-based consumers (and
   // Track 3 app prototypes) can call it directly.
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   if (req.method === "OPTIONS") {
     res.status(204).end();
     return;
@@ -23,12 +19,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   // Anchor answers the whole FRAUD_DETECTION intent from this one endpoint: a
   // `wallet` runs the on-chain solvency path; a `query` (fraud-knowledge
-  // question) runs the LLM path. Accept both; the classifier decides. `q` is
-  // accepted as an alias since routed queries may use either name.
-  const wallet = first(req.query.wallet);
-  const query = first(req.query.query) ?? first(req.query.q);
+  // question) runs the LLM path. Gather both from the query string OR the body,
+  // since a routed request's shape isn't under our control; the classifier
+  // decides which path to take.
+  const input = extractInput(req.query, req.body);
 
-  if (!wallet && !query) {
+  if (!input.wallet && !input.query) {
     res.status(400).json({
       error: "Missing input. Provide a wallet to assess, or a query to answer.",
       examples: {
@@ -40,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const result = await answerFraudQuery({ wallet, query });
+    const result = await answerFraudQuery(input);
     res.setHeader(
       "Cache-Control",
       `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${CACHE_TTL_SECONDS * 2}`,
