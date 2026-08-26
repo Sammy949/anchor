@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getKnowledgeAnswer, shapeKnowledgeResponse, stripReasoning } from "../src/knowledge.js";
+import { getKnowledgeAnswer, shapeKnowledgeResponse, stripReasoning, retryDelayMs } from "../src/knowledge.js";
 
 const FIXED_MS = Date.UTC(2026, 7, 25, 12, 0, 0); // 2026-08-25T12:00:00Z
 
@@ -58,4 +58,20 @@ test("stripReasoning removes a <think> block but keeps the answer", () => {
   );
   // No think block: unchanged (just trimmed).
   assert.equal(stripReasoning("  A clean answer.  "), "A clean answer.");
+});
+
+test("retryDelayMs: prefers a numeric Retry-After header (seconds), plus buffer", () => {
+  assert.equal(retryDelayMs("2", ""), 2250); // 2s + 250ms buffer
+});
+
+test("retryDelayMs: parses Groq's body hint when no header", () => {
+  assert.equal(retryDelayMs(null, "Rate limit reached ... Please try again in 3.51s. Need more"), 3760);
+});
+
+test("retryDelayMs: falls back to a small default with no signal", () => {
+  assert.equal(retryDelayMs(null, "some error with no wait hint"), 1500);
+});
+
+test("retryDelayMs: clamps a large hint to the max wait (budget guard)", () => {
+  assert.equal(retryDelayMs(null, "try again in 100s"), 4000); // GROQ.retryMaxWaitMs default
 });

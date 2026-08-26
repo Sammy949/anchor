@@ -60,23 +60,33 @@ export function shapeKnowledgeResponse(answer: string, nowMs: number = Date.now(
 }
 
 /**
- * Call Groq's OpenAI-compatible chat completions endpoint and return the answer
- * text. Uses the global fetch (native on Vercel and Node 18+). Fails loudly with
- * a typed error rather than crashing, so the endpoint can map it to a clean HTTP
- * status.
+ * Parse how long to wait before retrying a 429, from the `Retry-After` header
+ * (seconds) or Groq's body hint ("Please try again in 3.51s."). Falls back to a
+ * small default, and is clamped to [250ms, GROQ.retryMaxWaitMs] with a little
+ * buffer so we retry just *after* the window clears, never before.
  */
-export async function callGroq(question: string): Promise<string> {
-  if (!GROQ.apiKey) {
-    throw new KnowledgeUnavailableError(
-      "Knowledge path unavailable: GROQ_API_KEY is not set. Set it in the environment to answer fraud-knowledge questions.",
-    );
+export function retryDelayMs(retryAfterHeader: string | null, body: string): number {
+  let seconds = NaN;
+  if (retryAfterHeader && !Number.isNaN(Number(retryAfterHeader))) {
+    seconds = Number(retryAfterHeader);
+  } else {
+    const m = body.match(/try again in\s+([\d.]+)\s*s/i);
+    if (m) seconds = Number(m[1]);
   }
+  const base = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 + 250 : 1500;
+  return Math.min(Math.max(base, 250), GROQ.retryMaxWaitMs);
+}
 
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** One Groq call, bounded by `timeoutMs`. Throws KnowledgeUnavailableError on
+ * network failure or timeout; returns the raw Response otherwise (caller checks
+ * status). */
+async function groqFetchOnce(question: string, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), GROQ.timeoutMs);
-  let res: Response;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    res = await fetch(GROQ.apiUrl, {
+    return await fetch(GROQ.apiUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${GROQ.apiKey}`,
@@ -95,10 +105,8 @@ export async function callGroq(question: string): Promise<string> {
       signal: controller.signal,
     });
   } catch (err) {
-    // An aborted fetch can surface as a generic "fetch failed" (TypeError) rather
-    // than a named AbortError depending on timing, so key off the signal itself.
     if (controller.signal.aborted) {
-      throw new KnowledgeUnavailableError(`Knowledge LLM timed out after ${GROQ.timeoutMs}ms`);
+      throw new KnowledgeUnavailableError(`Knowledge LLM timed out after ${timeoutMs}ms`);
     }
     throw new KnowledgeUnavailableError(
       `Knowledge LLM request failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -106,22 +114,67 @@ export async function callGroq(question: string): Promise<string> {
   } finally {
     clearTimeout(timer);
   }
+}
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
+/**
+ * Call Groq's OpenAI-compatible chat completions endpoint and return the answer
+ * text. Retries once on a 429 (free-tier TPM exhausted) after the rate window
+ * clears — otherwise a rate-limited validator spot-check would get an empty
+ * answer and score 0. The whole retry sequence is bounded by GROQ.timeoutMs so
+ * it stays inside Vercel's function budget. Fails loudly with a typed error.
+ */
+export async function callGroq(question: string): Promise<string> {
+  if (!GROQ.apiKey) {
     throw new KnowledgeUnavailableError(
-      `Knowledge LLM returned HTTP ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
+      "Knowledge path unavailable: GROQ_API_KEY is not set. Set it in the environment to answer fraud-knowledge questions.",
     );
   }
 
-  const data = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const answer = stripReasoning(data.choices?.[0]?.message?.content ?? "");
-  if (!answer) {
-    throw new KnowledgeUnavailableError("Knowledge LLM returned an empty answer");
+  const deadline = Date.now() + GROQ.timeoutMs;
+  const maxAttempts = Math.max(1, GROQ.maxRetries + 1);
+  let last429 = "";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    const res = await groqFetchOnce(question, remaining);
+
+    if (res.status === 429) {
+      last429 = await res.text().catch(() => "");
+      // Retry only if there's another attempt AND enough budget for the backoff
+      // plus a follow-up call (~2s). Otherwise fail cleanly as rate-limited.
+      if (attempt < maxAttempts) {
+        const waitMs = retryDelayMs(res.headers.get("retry-after"), last429);
+        if (waitMs + 2000 <= deadline - Date.now()) {
+          await sleep(waitMs);
+          continue;
+        }
+      }
+      throw new KnowledgeUnavailableError(
+        `Knowledge LLM rate-limited (429)${last429 ? `: ${last429.slice(0, 200)}` : ""}`,
+      );
+    }
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new KnowledgeUnavailableError(
+        `Knowledge LLM returned HTTP ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
+      );
+    }
+
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const answer = stripReasoning(data.choices?.[0]?.message?.content ?? "");
+    if (!answer) {
+      throw new KnowledgeUnavailableError("Knowledge LLM returned an empty answer");
+    }
+    return answer;
   }
-  return answer;
+
+  throw new KnowledgeUnavailableError(
+    `Knowledge LLM rate-limited (429), retries exhausted${last429 ? `: ${last429.slice(0, 200)}` : ""}`,
+  );
 }
 
 // Some models emit chain-of-thought in a <think>...</think> block before the
