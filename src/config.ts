@@ -71,6 +71,12 @@ export const GROQ = {
   // ample and keeps TPM usage well under the cap at validator cadence. (512 was
   // the old value that truncated once reasoning ate the budget.)
   maxTokens: Number(process.env.ANCHOR_LLM_MAX_TOKENS ?? 1024),
+  // On a 429 (free-tier TPM exhausted) wait for the rate window to clear and retry
+  // once, rather than returning an empty answer the validator scores 0. One retry
+  // fits inside Vercel's 10s function budget alongside the call timeout.
+  maxRetries: Number(process.env.ANCHOR_LLM_MAX_RETRIES ?? 1),
+  // Cap the 429 backoff so a large "try again in Ns" hint can't blow the budget.
+  retryMaxWaitMs: Number(process.env.ANCHOR_LLM_RETRY_MAX_WAIT_MS ?? 4000),
 };
 
 // Data-source tag for a knowledge answer, parallel to SOURCE for the chain path.
