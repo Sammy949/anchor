@@ -123,7 +123,7 @@ scripts/
 
 - Data source: Aave v3 on Base mainnet (chain 8453). Reads are free (no gas).
 - Telegraph miner registration is separate and lives on Base Sepolia (chain 84532). See `docs/telegraph-registration.md`.
-- `ANCHOR_RPC_URL` overrides the default public Base RPC with a private one (Alchemy, Infura, etc.) without a code change.
+- `ANCHOR_RPC_URL` sets a private primary Base RPC (Alchemy, Infura, etc.); the public Base RPC is kept as an automatic fallback if it fails or times out (`ANCHOR_RPC_TIMEOUT_MS`, default 4000). If unset, Anchor runs on the public RPC alone.
 
 ## Local development
 

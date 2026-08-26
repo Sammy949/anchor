@@ -3,14 +3,37 @@
  *
  * Anchor reads Aave v3 state from Base mainnet (real positions = real ground
  * truth). This is independent of Telegraph's on-chain miner registry, which
- * lives on Base Sepolia. ANCHOR_RPC_URL lets us swap in a private RPC (Alchemy
- * / Infura / etc.) later without a code change.
+ * lives on Base Sepolia.
+ *
+ * RPC reliability: the wallet-read path runs against a PRIVATE endpoint first
+ * (Alchemy / Infura / etc. via ANCHOR_RPC_URL), with the PUBLIC Base RPC kept
+ * as a fallback. A private-endpoint outage, rate-limit, or timeout during a
+ * live validator spot-check therefore degrades to the public RPC instead of
+ * failing the read. When ANCHOR_RPC_URL is unset we run on the public RPC alone
+ * (the previous behavior). See src/provider.ts for the fallback runner.
  */
 export const NETWORK = {
   name: "base-mainnet",
   chainId: 8453,
-  rpcUrl: process.env.ANCHOR_RPC_URL ?? "https://mainnet.base.org",
 } as const;
+
+// Public Base mainnet RPC — no uptime/latency guarantees, so it's the fallback,
+// never the sole primary in production (set ANCHOR_RPC_URL for that).
+const PUBLIC_BASE_RPC = "https://mainnet.base.org";
+
+// Ordered, deduped RPC endpoints: private primary first (when ANCHOR_RPC_URL is
+// set), public fallback last. Deduped so an accidental ANCHOR_RPC_URL that
+// equals the public URL doesn't produce two identical attempts.
+const privateRpc = process.env.ANCHOR_RPC_URL?.trim() || undefined;
+export const RPC_URLS: string[] = [
+  ...new Set([privateRpc, PUBLIC_BASE_RPC].filter((u): u is string => !!u)),
+];
+
+// Per-endpoint timeout for an on-chain read. Short enough that a hung or slow
+// RPC fails fast and falls back well inside Vercel's ~10s function budget; long
+// enough that a normal warm read (~200-500ms) never trips it. Override with
+// ANCHOR_RPC_TIMEOUT_MS.
+export const RPC_TIMEOUT_MS = Number(process.env.ANCHOR_RPC_TIMEOUT_MS ?? 4000);
 
 // Aave v3 Pool (proxy) on Base mainnet.
 // Verified: BaseScan "Aave: Pool Proxy Base" + aave-dao/aave-address-book AaveV3Base.POOL.

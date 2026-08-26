@@ -1,11 +1,12 @@
-import { getAddress, isAddress, JsonRpcProvider } from "ethers";
+import { getAddress, isAddress, type JsonRpcProvider } from "ethers";
 import { NETWORK, PROTOCOL, SOURCE } from "./config.js";
 import { readAaveAccountData } from "./aave.js";
+import { withRpcFallback } from "./provider.js";
 import { freshnessConfidence, liquidationDistance, positionStatus, riskLabel, round2, round4 } from "./risk.js";
 import { toRiskCheck } from "./verdict.js";
 import { classifyQuery, type RawInput } from "./classify.js";
 import { callGroq, getKnowledgeAnswer, type Completer } from "./knowledge.js";
-import type { FraudResponse, HealthFactorResponse, RiskCheckResponse } from "./types.js";
+import type { AaveAccountData, FraudResponse, HealthFactorResponse, RiskCheckResponse } from "./types.js";
 
 export class InvalidWalletError extends Error {
   constructor(input: string) {
@@ -22,20 +23,30 @@ export class MissingInputError extends Error {
   }
 }
 
-// Reuse one provider across warm invocations. staticNetwork skips a per-call
-// eth_chainId round-trip since the chain is fixed.
-let provider: JsonRpcProvider | null = null;
-function getProvider(): JsonRpcProvider {
-  if (!provider) {
-    provider = new JsonRpcProvider(NETWORK.rpcUrl, NETWORK.chainId, { staticNetwork: true });
-  }
-  return provider;
+/**
+ * One full on-chain read against a single provider: head block number, then the
+ * Aave account view and the block itself pinned to that number so the reported
+ * freshness metadata is exact. Expressed as a provider op so withRpcFallback can
+ * retry the whole read on the public fallback if the primary fails or times out.
+ */
+async function readPosition(
+  p: JsonRpcProvider,
+  wallet: string,
+): Promise<{ account: AaveAccountData; blockNumber: number; blockTimestamp: number }> {
+  const blockNumber = await p.getBlockNumber();
+  const [account, block] = await Promise.all([
+    readAaveAccountData(p, wallet, blockNumber),
+    p.getBlock(blockNumber),
+  ]);
+  if (!block) throw new Error(`RPC returned no block for ${blockNumber}`);
+  return { account, blockNumber: block.number, blockTimestamp: block.timestamp };
 }
 
 /**
  * Core, transport-agnostic entry point: wallet address -> full risk signal.
  * Reads the account view and the head block, pinned to the same block number
- * so the reported freshness metadata is exact.
+ * so the reported freshness metadata is exact. The read runs against the private
+ * primary RPC with the public RPC as a fallback (see src/provider.ts).
  */
 export async function getRiskSignal(
   walletInput: string,
@@ -44,13 +55,9 @@ export async function getRiskSignal(
   if (!isAddress(walletInput)) throw new InvalidWalletError(walletInput);
   const wallet = getAddress(walletInput); // normalize to checksum
 
-  const p = getProvider();
-  const blockNumber = await p.getBlockNumber();
-  const [account, block] = await Promise.all([
-    readAaveAccountData(p, wallet, blockNumber),
-    p.getBlock(blockNumber),
-  ]);
-  if (!block) throw new Error(`RPC returned no block for ${blockNumber}`);
+  const { account, blockNumber, blockTimestamp } = await withRpcFallback((p) =>
+    readPosition(p, wallet),
+  );
 
   // Round the health factor to 4dp and derive every downstream field from that
   // same value, so the response is internally recomputable: an agent gets our
@@ -68,10 +75,10 @@ export async function getRiskSignal(
     totalDebtUSD: round2(account.totalDebtUSD),
     liquidationThreshold: account.liquidationThreshold,
     liquidationDistance: liquidationDistance(derived),
-    confidence: freshnessConfidence(block.timestamp, nowMs),
+    confidence: freshnessConfidence(blockTimestamp, nowMs),
     meta: {
-      blockNumber: block.number,
-      timestamp: new Date(block.timestamp * 1000).toISOString(),
+      blockNumber,
+      timestamp: new Date(blockTimestamp * 1000).toISOString(),
       source: SOURCE,
       chainId: NETWORK.chainId,
       network: NETWORK.name,
