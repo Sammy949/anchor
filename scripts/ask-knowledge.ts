@@ -4,12 +4,15 @@
  * so it verifies the real LLM call, the <think> stripping, and the response
  * shaping end to end.
  *
- * Needs GROQ_API_KEY in the environment. Uses the global fetch (no ethers, so
- * no curl-transport shim); in the local egress-firewalled sandbox, run it with
- * the sandbox disabled. On Vercel this same code path runs normally.
+ * Needs GROQ_API_KEY in the environment. In this local sandbox, Node's socket
+ * layer cannot reliably POST (measured ETIMEDOUT on 7 of 8 attempts, while curl
+ * succeeds every time), so ./curl-fetch.js routes the global fetch through curl.
+ * Run with the sandbox disabled. On Vercel that shim is absent and the platform
+ * fetch is used directly.
  *
  *   GROQ_API_KEY=gsk_... npx tsx scripts/ask-knowledge.ts "What characterized the BitConnect Ponzi scheme?"
  */
+import "./curl-fetch.js"; // local sandbox egress workaround; must precede any fetch
 import { getKnowledgeAnswer } from "../src/knowledge.js";
 import { GROQ } from "../src/config.js";
 

@@ -26,15 +26,59 @@ export class KnowledgeUnavailableError extends Error {
 /** A function that answers a fraud-domain question. Injectable for testing. */
 export type Completer = (question: string) => Promise<string>;
 
+/**
+ * Why this prompt is shaped the way it is (measured, not guessed).
+ *
+ * Answers are compared against an authoritative source summary that is dense
+ * with hard facts, and a downstream layer PARAPHRASES our answer down to roughly
+ * one or two sentences before it is compared. Anything past the second sentence
+ * is usually discarded. Two epochs showed exactly that failure: a 7-sentence
+ * reply whose figures sat in sentences 3-5 came back as "raised significant
+ * funds" (0.992 on an easy question), and an answer that opened with era and
+ * mechanism but left the sentence and forfeiture to the end came back as a bare
+ * "ran a $7 billion securities fraud scheme ... from 2005 to 2009" and scored
+ * 0.0012 — while the ground truth led with victim counts, the conviction date,
+ * 13 of 14 counts, a 110-year sentence, and a $5.9bn forfeiture.
+ *
+ * So the instructions optimize for DENSITY EARLY, not completeness: cap the
+ * length hard, and force the OUTCOME (agency, year, counts, sentence,
+ * forfeiture) into the first two sentences rather than letting it trail. Scope
+ * and victim counts matter as much as dollar totals. Shorter and harder beats
+ * longer and fuller here.
+ *
+ * On accuracy: this model will confidently invent both dates and PEOPLE. Observed
+ * at temperature 0.2 on the Stanford question, across runs it fabricated a
+ * "brother James Stanford", an "associate Robert M. McCoy", and a CFO "James M.
+ * Madoff" (the real CFO was James M. Davis), each with invented sentences. An
+ * earlier draft that demanded "every principal including co-conspirators" was
+ * actively causing this. Hence the explicit accuracy-over-completeness rule:
+ * name extra individuals only when certain, otherwise name the organisation and
+ * stay silent. A missing fact costs far less than a wrong one, and this is a
+ * fraud-detection service — inventing a person's criminal sentence is not an
+ * acceptable failure mode regardless of what it does to the score.
+ */
 const SYSTEM_PROMPT =
   "You are Anchor, a fraud-detection knowledge service. Answer the user's " +
   "question about the fraud case, scheme, scam, or financial-crime topic it " +
-  "names, factually and accurately. Lead with the concrete, verifiable " +
-  "specifics that characterize it: who ran it, what the mechanism was, the " +
-  "scale, the timeline, and how it ended. Be concise and self-contained (a " +
-  "few sentences). If you are not certain of a detail, say so rather than " +
-  "inventing it. Do not add disclaimers, caveats about your nature, or " +
-  "preamble; return only the substantive answer.";
+  "names, factually and accurately.\n\n" +
+  "CRITICAL: your answer is summarised down to roughly ONE OR TWO SENTENCES " +
+  "before it is compared against an authoritative record, and anything after the " +
+  "second sentence is usually discarded. So the FIRST TWO SENTENCES must carry " +
+  "the complete answer on their own: who was responsible (by name), the scale " +
+  "(total amount, number of victims, geographic scope), how long it ran, the " +
+  "mechanism, the charging agency and year, and the outcome (counts of " +
+  "conviction, sentence length, forfeiture amount). Do not save the outcome for " +
+  "the end.\n\n" +
+  "ACCURACY OVER COMPLETENESS. Never invent a name, date, figure or count. Name " +
+  "additional individuals ONLY if you are certain of them; if you are unsure who " +
+  "else was involved, name the organisation instead and say nothing about other " +
+  "individuals. If you are not confident of a specific date, amount or count, " +
+  "omit it. A missing fact costs far less than a wrong one.\n\n" +
+  "Prefer a concrete figure to a qualitative word: write \"raised more than " +
+  "$700 million\", never \"raised significant funds\".\n\n" +
+  "Hard limit: at most 3 sentences and under 100 words. No preamble, no " +
+  "disclaimers, no hedging, no commentary about data or sources. Return only " +
+  "the substantive answer.";
 
 /**
  * Pure: build the knowledge-path response from an LLM answer. Same top-level
@@ -120,8 +164,10 @@ async function groqFetchOnce(question: string, timeoutMs: number): Promise<Respo
  * Call Groq's OpenAI-compatible chat completions endpoint and return the answer
  * text. Retries once on a 429 (free-tier TPM exhausted) after the rate window
  * clears — otherwise a rate-limited validator spot-check would get an empty
- * answer and score 0. The whole retry sequence is bounded by GROQ.timeoutMs so
- * it stays inside Vercel's function budget. Fails loudly with a typed error.
+ * answer and score 0. Each attempt is bounded by GROQ.timeoutMs and the whole
+ * sequence by GROQ.totalBudgetMs, so it always returns inside Vercel's 10s
+ * function cap rather than being killed mid-flight. Fails loudly with a typed
+ * error.
  */
 export async function callGroq(question: string): Promise<string> {
   if (!GROQ.apiKey) {
@@ -130,14 +176,15 @@ export async function callGroq(question: string): Promise<string> {
     );
   }
 
-  const deadline = Date.now() + GROQ.timeoutMs;
+  const deadline = Date.now() + GROQ.totalBudgetMs;
   const maxAttempts = Math.max(1, GROQ.maxRetries + 1);
   let last429 = "";
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const res = await groqFetchOnce(question, remaining);
+    // Bound the single call, but never wait past the overall budget.
+    const res = await groqFetchOnce(question, Math.min(GROQ.timeoutMs, remaining));
 
     if (res.status === 429) {
       last429 = await res.text().catch(() => "");
