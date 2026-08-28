@@ -26,15 +26,43 @@ export class KnowledgeUnavailableError extends Error {
 /** A function that answers a fraud-domain question. Injectable for testing. */
 export type Completer = (question: string) => Promise<string>;
 
+/**
+ * Why this prompt is shaped the way it is (measured, not guessed).
+ *
+ * Answers are compared against an authoritative source summary that is dense
+ * with hard facts, and a downstream layer PARAPHRASES our answer down to ~2
+ * sentences before it is compared. A long answer therefore loses its specifics
+ * in compression: a 7-sentence reply whose figures sat in sentences 3-5 came
+ * back as "raised significant funds", while a short reply that put "more than
+ * $700 million" and every named principal in sentence 1 kept them intact.
+ *
+ * So the instructions optimize for DENSITY EARLY, not completeness: cap the
+ * length, front-load every figure and full name, and ban qualitative
+ * substitutes for numbers. Shorter and harder beats longer and fuller here.
+ *
+ * On accuracy: this model will confidently state a wrong year (observed
+ * "convicted January 2024" for a January 2022 conviction, even at temperature
+ * 0). Instructing it to OMIT an uncertain figure rather than guess reduces that,
+ * though it does not eliminate it. Never trade a hallucinated specific for a
+ * missing one — a wrong number is worse than no number.
+ */
 const SYSTEM_PROMPT =
   "You are Anchor, a fraud-detection knowledge service. Answer the user's " +
   "question about the fraud case, scheme, scam, or financial-crime topic it " +
-  "names, factually and accurately. Lead with the concrete, verifiable " +
-  "specifics that characterize it: who ran it, what the mechanism was, the " +
-  "scale, the timeline, and how it ended. Be concise and self-contained (a " +
-  "few sentences). If you are not certain of a detail, say so rather than " +
-  "inventing it. Do not add disclaimers, caveats about your nature, or " +
-  "preamble; return only the substantive answer.";
+  "names, factually and accurately.\n\n" +
+  "Your answer is read by a machine that compresses it to about two sentences, " +
+  "so FRONT-LOAD the hard specifics into the first two sentences: the full name " +
+  "of every principal involved (including co-conspirators, not just the most " +
+  "famous name), exact dollar amounts, specific years and dates, the charging " +
+  "agency or regulator, counts of conviction, and sentence lengths. Then state " +
+  "the mechanism plainly and how it ended.\n\n" +
+  "Always prefer a concrete figure to a qualitative word: write \"raised more " +
+  "than $700 million\", never \"raised significant funds\". If you are not " +
+  "confident of a particular date, amount, or count, omit it rather than " +
+  "guessing — never invent a figure.\n\n" +
+  "Hard limit: at most 4 sentences and under 110 words. No preamble, no " +
+  "disclaimers, no hedging, no commentary about data or sources. Return only " +
+  "the substantive answer.";
 
 /**
  * Pure: build the knowledge-path response from an LLM answer. Same top-level
@@ -120,8 +148,10 @@ async function groqFetchOnce(question: string, timeoutMs: number): Promise<Respo
  * Call Groq's OpenAI-compatible chat completions endpoint and return the answer
  * text. Retries once on a 429 (free-tier TPM exhausted) after the rate window
  * clears — otherwise a rate-limited validator spot-check would get an empty
- * answer and score 0. The whole retry sequence is bounded by GROQ.timeoutMs so
- * it stays inside Vercel's function budget. Fails loudly with a typed error.
+ * answer and score 0. Each attempt is bounded by GROQ.timeoutMs and the whole
+ * sequence by GROQ.totalBudgetMs, so it always returns inside Vercel's 10s
+ * function cap rather than being killed mid-flight. Fails loudly with a typed
+ * error.
  */
 export async function callGroq(question: string): Promise<string> {
   if (!GROQ.apiKey) {
@@ -130,14 +160,15 @@ export async function callGroq(question: string): Promise<string> {
     );
   }
 
-  const deadline = Date.now() + GROQ.timeoutMs;
+  const deadline = Date.now() + GROQ.totalBudgetMs;
   const maxAttempts = Math.max(1, GROQ.maxRetries + 1);
   let last429 = "";
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    const res = await groqFetchOnce(question, remaining);
+    // Bound the single call, but never wait past the overall budget.
+    const res = await groqFetchOnce(question, Math.min(GROQ.timeoutMs, remaining));
 
     if (res.status === 429) {
       last429 = await res.text().catch(() => "");

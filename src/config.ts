@@ -78,22 +78,36 @@ export const GROQ = {
   get apiKey(): string {
     return process.env.GROQ_API_KEY ?? "";
   },
-  // Under a Vercel function budget (~10s). Warm calls are ~1.5s; this is headroom
-  // for an occasional cold model start before failing gracefully.
-  timeoutMs: Number(process.env.ANCHOR_LLM_TIMEOUT_MS ?? 9000),
+  // Bound a single call. MEASURED (14 runs across every observed question shape):
+  // Groq's free tier is highly variable — 1.4s, 1.6s, 1.7s, 1.9s, 2.2s, 2.6s,
+  // 4.0s, 4.1s, 5.3s, 6.1s, 7.5s, 11.3s. The spread is queueing/load, not answer
+  // length, so a tight per-call timeout does NOT pay off while a timeout is a
+  // hard failure: groqFetchOnce currently only retries on 429, so any timeout is
+  // an immediate 503 that scores 0. Keep this generous until timeout-retry exists
+  // (then a ~4000ms bound plus a second attempt beats one long wait, since ~70%
+  // of attempts land under 4.5s).
+  timeoutMs: Number(process.env.ANCHOR_LLM_TIMEOUT_MS ?? 8000),
+  // Overall budget for the whole answer sequence (initial call + any 429 backoff
+  // + retry), kept under Vercel's 10s function cap so we always return something
+  // rather than being killed mid-flight.
+  totalBudgetMs: Number(process.env.ANCHOR_LLM_TOTAL_BUDGET_MS ?? 8500),
   // gpt-oss-120b is a REASONING model: it spends completion tokens on hidden
   // reasoning before the answer. "low" keeps that to a minimum so the answer
   // itself is what fills the budget — without it, hard questions burn the whole
   // cap on reasoning and return an EMPTY answer (surfaced as a 503 that scores
-  // ~0). Groq gpt-oss accepts: low | medium | high.
+  // ~0). Groq gpt-oss accepts: low | medium | high, but "medium" was measured
+  // burning all 600 tokens on reasoning and returning EMPTY content — keep "low".
   reasoningEffort: process.env.ANCHOR_LLM_REASONING_EFFORT ?? "low",
-  // Headroom so reasoning + answer both fit, WITHOUT over-reserving against the
-  // Groq free-tier TPM cap (8000 tok/min): the rate limiter charges ~prompt +
-  // max_tokens per request, so a needlessly-large cap causes 429s. With
-  // reasoning_effort=low the answer itself only runs ~180-290 tokens, so 1024 is
-  // ample and keeps TPM usage well under the cap at validator cadence. (512 was
-  // the old value that truncated once reasoning ate the budget.)
-  maxTokens: Number(process.env.ANCHOR_LLM_MAX_TOKENS ?? 1024),
+  // Sized from MEASURED completion lengths, not guessed headroom. Groq's rate
+  // limiter charges ~prompt + max_tokens against the free-tier TPM cap (8000
+  // tok/min for the gpt-oss models), so an oversized cap manufactures its own
+  // 429s — which is exactly what scored 0.000 in past epochs. Under the current
+  // prompt real completions run 182-395 tokens (all finishing cleanly), so 400
+  // was too tight to be safe: 512 clears the observed ceiling with margin while
+  // still cutting the TPM charge ~40% vs the old 1024. (512 truncated back when
+  // reasoning_effort was unset and hidden reasoning ate the budget; with
+  // effort=low that no longer applies.)
+  maxTokens: Number(process.env.ANCHOR_LLM_MAX_TOKENS ?? 512),
   // On a 429 (free-tier TPM exhausted) wait for the rate window to clear and retry
   // once, rather than returning an empty answer the validator scores 0. One retry
   // fits inside Vercel's 10s function budget alongside the call timeout.
