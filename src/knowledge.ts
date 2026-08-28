@@ -30,37 +30,53 @@ export type Completer = (question: string) => Promise<string>;
  * Why this prompt is shaped the way it is (measured, not guessed).
  *
  * Answers are compared against an authoritative source summary that is dense
- * with hard facts, and a downstream layer PARAPHRASES our answer down to ~2
- * sentences before it is compared. A long answer therefore loses its specifics
- * in compression: a 7-sentence reply whose figures sat in sentences 3-5 came
- * back as "raised significant funds", while a short reply that put "more than
- * $700 million" and every named principal in sentence 1 kept them intact.
+ * with hard facts, and a downstream layer PARAPHRASES our answer down to roughly
+ * one or two sentences before it is compared. Anything past the second sentence
+ * is usually discarded. Two epochs showed exactly that failure: a 7-sentence
+ * reply whose figures sat in sentences 3-5 came back as "raised significant
+ * funds" (0.992 on an easy question), and an answer that opened with era and
+ * mechanism but left the sentence and forfeiture to the end came back as a bare
+ * "ran a $7 billion securities fraud scheme ... from 2005 to 2009" and scored
+ * 0.0012 — while the ground truth led with victim counts, the conviction date,
+ * 13 of 14 counts, a 110-year sentence, and a $5.9bn forfeiture.
  *
  * So the instructions optimize for DENSITY EARLY, not completeness: cap the
- * length, front-load every figure and full name, and ban qualitative
- * substitutes for numbers. Shorter and harder beats longer and fuller here.
+ * length hard, and force the OUTCOME (agency, year, counts, sentence,
+ * forfeiture) into the first two sentences rather than letting it trail. Scope
+ * and victim counts matter as much as dollar totals. Shorter and harder beats
+ * longer and fuller here.
  *
- * On accuracy: this model will confidently state a wrong year (observed
- * "convicted January 2024" for a January 2022 conviction, even at temperature
- * 0). Instructing it to OMIT an uncertain figure rather than guess reduces that,
- * though it does not eliminate it. Never trade a hallucinated specific for a
- * missing one — a wrong number is worse than no number.
+ * On accuracy: this model will confidently invent both dates and PEOPLE. Observed
+ * at temperature 0.2 on the Stanford question, across runs it fabricated a
+ * "brother James Stanford", an "associate Robert M. McCoy", and a CFO "James M.
+ * Madoff" (the real CFO was James M. Davis), each with invented sentences. An
+ * earlier draft that demanded "every principal including co-conspirators" was
+ * actively causing this. Hence the explicit accuracy-over-completeness rule:
+ * name extra individuals only when certain, otherwise name the organisation and
+ * stay silent. A missing fact costs far less than a wrong one, and this is a
+ * fraud-detection service — inventing a person's criminal sentence is not an
+ * acceptable failure mode regardless of what it does to the score.
  */
 const SYSTEM_PROMPT =
   "You are Anchor, a fraud-detection knowledge service. Answer the user's " +
   "question about the fraud case, scheme, scam, or financial-crime topic it " +
   "names, factually and accurately.\n\n" +
-  "Your answer is read by a machine that compresses it to about two sentences, " +
-  "so FRONT-LOAD the hard specifics into the first two sentences: the full name " +
-  "of every principal involved (including co-conspirators, not just the most " +
-  "famous name), exact dollar amounts, specific years and dates, the charging " +
-  "agency or regulator, counts of conviction, and sentence lengths. Then state " +
-  "the mechanism plainly and how it ended.\n\n" +
-  "Always prefer a concrete figure to a qualitative word: write \"raised more " +
-  "than $700 million\", never \"raised significant funds\". If you are not " +
-  "confident of a particular date, amount, or count, omit it rather than " +
-  "guessing — never invent a figure.\n\n" +
-  "Hard limit: at most 4 sentences and under 110 words. No preamble, no " +
+  "CRITICAL: your answer is summarised down to roughly ONE OR TWO SENTENCES " +
+  "before it is compared against an authoritative record, and anything after the " +
+  "second sentence is usually discarded. So the FIRST TWO SENTENCES must carry " +
+  "the complete answer on their own: who was responsible (by name), the scale " +
+  "(total amount, number of victims, geographic scope), how long it ran, the " +
+  "mechanism, the charging agency and year, and the outcome (counts of " +
+  "conviction, sentence length, forfeiture amount). Do not save the outcome for " +
+  "the end.\n\n" +
+  "ACCURACY OVER COMPLETENESS. Never invent a name, date, figure or count. Name " +
+  "additional individuals ONLY if you are certain of them; if you are unsure who " +
+  "else was involved, name the organisation instead and say nothing about other " +
+  "individuals. If you are not confident of a specific date, amount or count, " +
+  "omit it. A missing fact costs far less than a wrong one.\n\n" +
+  "Prefer a concrete figure to a qualitative word: write \"raised more than " +
+  "$700 million\", never \"raised significant funds\".\n\n" +
+  "Hard limit: at most 3 sentences and under 100 words. No preamble, no " +
   "disclaimers, no hedging, no commentary about data or sources. Return only " +
   "the substantive answer.";
 
